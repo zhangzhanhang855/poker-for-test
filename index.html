@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dou Dizhu - AI Battle Arena</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #1b4332;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #game-container {
+      position: relative;
+      width: 960px;
+      height: 640px;
+      background: radial-gradient(circle, #2d6a4f 0%, #081c15 100%);
+      border: 12px solid #52b788;
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+    }
+    .status-bar {
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #d8f3dc;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    .table-area {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 180px 1fr 180px;
+      grid-template-rows: 1fr 120px;
+      gap: 10px;
+      align-items: center;
+    }
+    .player-box {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+    }
+    .player-box.active {
+      border: 2px solid #ffb703;
+      box-shadow: 0 0 15px rgba(255, 183, 3, 0.5);
+    }
+    .played-cards-zone {
+      grid-column: 2;
+      grid-row: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 10px;
+    }
+    button {
+      background: linear-gradient(180deg, #ffb703 0%, #fb8500 100%);
+      border: none;
+      color: #023047;
+      padding: 12px 28px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 25px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: all 0.2s ease;
+    }
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+    }
+    button:disabled {
+      background: #6c757d;
+      color: #adb5bd;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    #human-cards-canvas {
+      cursor: pointer;
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <div class="status-bar" id="game-status">Initializing Game...</div>
+
+  <div class="table-area">
+    <!-- Left AI -->
+    <div class="player-box" id="p1-box">
+      <h3>AI West</h3>
+      <p>Cards: <span id="p1-count">0</span></p>
+    </div>
+
+    <!-- Center Played Cards Zone -->
+    <div class="played-cards-zone">
+      <canvas id="played-canvas" width="450" height="130"></canvas>
+    </div>
+
+    <!-- Right AI -->
+    <div class="player-box" id="p2-box">
+      <h3>AI East</h3>
+      <p>Cards: <span id="p2-count">0</span></p>
+    </div>
+  </div>
+
+  <!-- Human Player Area -->
+  <div class="player-box active" id="p0-box" style="grid-column: 1 / -1;">
+    <canvas id="human-cards-canvas" width="800" height="140"></canvas>
+    <div class="controls">
+      <button id="btn-play">Play Selected</button>
+      <button id="btn-pass">Pass</button>
+      <button id="btn-restart" style="display:none;">New Game</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * ------------------------------------------------------------------
+ * 1. CARD & SUIT DEFINITIONS
+ * ------------------------------------------------------------------
+ */
+const SUITS = { HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣', SPADES: '♠' };
+const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2', 'Black Joker', 'Red Joker'];
+
+class Card {
+  constructor(rankIdx, suit = null) {
+    this.rankIdx = rankIdx; // 0 to 14
+    this.suit = suit;
+    this.selected = false;
+  }
+
+  get name() {
+    return RANKS[this.rankIdx];
+  }
+
+  get isJoker() {
+    return this.rankIdx >= 13;
+  }
+
+  get isRed() {
+    return this.suit === SUITS.HEARTS || this.suit === SUITS.DIAMONDS || this.rankIdx === 14;
+  }
+}
+
+/**
+ * ------------------------------------------------------------------
+ * 2. CANVAS RENDERING ENGINE
+ * ------------------------------------------------------------------
+ */
+class CardRenderer {
+  static drawCard(ctx, card, x, y, width = 75, height = 105) {
+    ctx.save();
+    
+    // Shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+
+    // Body
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, 8);
+    ctx.fill();
+
+    // Reset shadow for text
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#cccccc';
+    ctx.stroke();
+
+    ctx.fillStyle = card.isRed ? '#d90429' : '#212529';
+
+    if (card.isJoker) {
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(card.rankIdx === 14 ? 'RED' : 'BLK', x + 8, y + 22);
+      ctx.fillText('JOKER', x + 8, y + 40);
+    } else {
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(card.name, x + 8, y + 22);
+      ctx.font = '16px sans-serif';
+      ctx.fillText(card.suit, x + 10, y + 42);
+      
+      // Large center icon
+      ctx.font = '28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(card.suit, x + width / 2, y + height / 2 + 10);
+    }
+
+    ctx.restore();
+  }
+
+  static drawHand(canvas, cards, selectedIndices = []) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (cards.length === 0) return;
+
+    const cardWidth = 75;
+    const cardHeight = 105;
+    const overlap = Math.min(35, (canvas.width - cardWidth) / Math.max(1, cards.length - 1));
+    const startX = (canvas.width - ((cards.length - 1) * overlap + cardWidth)) / 2;
+
+    cards.forEach((card, i) => {
+      const isSelected = selectedIndices.includes(i);
+      const x = startX + i * overlap;
+      const y = isSelected ? 10 : 30; // Elevated if selected
+      this.drawCard(ctx, card, x, y, cardWidth, cardHeight);
+    });
+  }
+
+  static drawPlayedCards(canvas, cards) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (!cards || cards.length === 0) return;
+
+    const cardWidth = 60;
+    const cardHeight = 84;
+    const overlap = 22;
+    const startX = (canvas.width - ((cards.length - 1) * overlap + cardWidth)) / 2;
+
+    cards.forEach((card, i) => {
+      const x = startX + i * overlap;
+      const y = (canvas.height - cardHeight) / 2;
+      this.drawCard(ctx, card, x, y, cardWidth, cardHeight);
+    });
+  }
+}
+
+/**
+ * ------------------------------------------------------------------
+ * 3. HAND TYPE RECOGNITION & COMPARISON RULES
+ * ------------------------------------------------------------------
+ */
+const HAND_TYPES = {
+  INVALID: 0,
+  SINGLE: 1,
+  PAIR: 2,
+  TRIPLE: 3,
+  TRIPLE_WITH_SINGLE: 4,
+  TRIPLE_WITH_PAIR: 5,
+  STRAIGHT: 6,
+  DOUBLE_STRAIGHT: 7,
+  BOMB: 8,
+  ROCKET: 9
+};
+
+class HandRuleEngine {
+  static analyze(cards) {
+    const len = cards.length;
+    if (len === 0) return { type: HAND_TYPES.INVALID, value: 0 };
+
+    const sorted = [...cards].sort((a, b) => a.rankIdx - b.rankIdx);
+    const counts = {};
+    sorted.forEach(c => counts[c.rankIdx] = (counts[c.rankIdx] || 0) + 1);
+    
+    const uniqueRanks = Object.keys(counts).map(Number).sort((a, b) => a - b);
+
+    // Rocket (Double Joker)
+    if (len === 2 && sorted[0].rankIdx === 13 && sorted[1].rankIdx === 14) {
+      return { type: HAND_TYPES.ROCKET, value: 14 };
+    }
+
+    // Single
+    if (len === 1) {
+      return { type: HAND_TYPES.SINGLE, value: sorted[0].rankIdx };
+    }
+
+    // Pair
+    if (len === 2 && uniqueRanks.length === 1) {
+      return { type: HAND_TYPES.PAIR, value: uniqueRanks[0] };
+    }
+
+    // Bomb
+    if (len === 4 && uniqueRanks.length === 1) {
+      return { type: HAND_TYPES.BOMB, value: uniqueRanks[0] };
+    }
+
+    // Triple
+    if (len === 3 && uniqueRanks.length === 1) {
+      return { type: HAND_TYPES.TRIPLE, value: uniqueRanks[0] };
+    }
+
+    // Triple with Single
+    if (len === 4 && uniqueRanks.length === 2) {
+      const tripleRank = uniqueRanks.find(r => counts[r] === 3);
+      if (tripleRank !== undefined) {
+        return { type: HAND_TYPES.TRIPLE_WITH_SINGLE, value: tripleRank };
+      }
+    }
+
+    // Triple with Pair
+    if (len === 5 && uniqueRanks.length === 2) {
+      const tripleRank = uniqueRanks.find(r => counts[r] === 3);
+      const pairRank = uniqueRanks.find(r => counts[r] === 2);
+      if (tripleRank !== undefined && pairRank !== undefined) {
+        return { type: HAND_TYPES.TRIPLE_WITH_PAIR, value: tripleRank };
+      }
+    }
+
+    // Straight (5+ consecutive cards, max 2 / rankIdx 12)
+    if (len >= 5 && uniqueRanks.length === len && uniqueRanks[uniqueRanks.length - 1] < 12) {
+      let isConsecutive = true;
+      for (let i = 0; i < uniqueRanks.length - 1; i++) {
+        if (uniqueRanks[i + 1] - uniqueRanks[i] !== 1) {
+          isConsecutive = false;
+          break;
+        }
+      }
+      if (isConsecutive) return { type: HAND_TYPES.STRAIGHT, value: uniqueRanks[0], length: len };
+    }
+
+    // Double Straight (3+ pairs consecutive)
+    if (len >= 6 && len % 2 === 0 && uniqueRanks.length === len / 2 && uniqueRanks[uniqueRanks.length - 1] < 12) {
+      const allPairs = uniqueRanks.every(r => counts[r] === 2);
+      let isConsecutive = true;
+      for (let i = 0; i < uniqueRanks.length - 1; i++) {
+        if (uniqueRanks[i + 1] - uniqueRanks[i] !== 1) {
+          isConsecutive = false;
+          break;
+        }
+      }
+      if (allPairs && isConsecutive) {
+        return { type: HAND_TYPES.DOUBLE_STRAIGHT, value: uniqueRanks[0], length: len };
+      }
+    }
+
+    return { type: HAND_TYPES.INVALID, value: 0 };
+  }
+
+  static compare(candidateCards, targetAnalysis) {
+    const cand = this.analyze(candidateCards);
+    if (cand.type === HAND_TYPES.INVALID) return false;
+
+    // No existing target to beat
+    if (!targetAnalysis || targetAnalysis.type === HAND_TYPES.INVALID) return true;
+
+    // Rocket beats everything
+    if (cand.type === HAND_TYPES.ROCKET) return true;
+
+    // Bomb beats non-bombs
+    if (cand.type === HAND_TYPES.BOMB && targetAnalysis.type !== HAND_TYPES.BOMB && targetAnalysis.type !== HAND_TYPES.ROCKET) {
+      return true;
+    }
+
+    // Same hand type checks
+    if (cand.type === targetAnalysis.type) {
+      if (cand.type === HAND_TYPES.STRAIGHT || cand.type === HAND_TYPES.DOUBLE_STRAIGHT) {
+        return cand.length === targetAnalysis.length && cand.value > targetAnalysis.value;
+      }
+      return cand.value > targetAnalysis.value;
+    }
+
+    return false;
+  }
+}
+
+/**
+ * ------------------------------------------------------------------
+ * 4. GAME STATE & AI LOGIC
+ * ------------------------------------------------------------------
+ */
+class Game {
+  constructor() {
+    this.players = [[], [], []]; // 0: Human, 1: AI West, 2: AI East
+    this.turn = 0;
+    this.selectedIndices = [];
+    this.lastValidPlay = null; // { player: index, cards: [], analysis: {} }
+    
+    this.initUI();
+    this.resetGame();
+  }
+
+  initUI() {
+    this.humanCanvas = document.getElementById('human-cards-canvas');
+    this.playedCanvas = document.getElementById('played-canvas');
+    this.btnPlay = document.getElementById('btn-play');
+    this.btnPass = document.getElementById('btn-pass');
+    this.btnRestart = document.getElementById('btn-restart');
+    this.statusText = document.getElementById('game-status');
+
+    this.humanCanvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+    this.btnPlay.addEventListener('click', () => this.handleHumanPlay());
+    this.btnPass.addEventListener('click', () => this.handleHumanPass());
+    this.btnRestart.addEventListener('click', () => this.resetGame());
+  }
+
+  resetGame() {
+    // Generate deck
+    let deck = [];
+    for (let r = 0; r < 13; r++) {
+      for (let s of Object.values(SUITS)) {
+        deck.push(new Card(r, s));
+      }
+    }
+    deck.push(new Card(13)); // Black Joker
+    deck.push(new Card(14)); // Red Joker
+
+    // Shuffle
+    deck.sort(() => Math.random() - 0.5);
+
+    // Deal 17 cards to each
+    this.players = [
+      deck.slice(0, 17).sort((a, b) => b.rankIdx - a.rankIdx),
+      deck.slice(17, 34).sort((a, b) => b.rankIdx - a.rankIdx),
+      deck.slice(34, 51).sort((a, b) => b.rankIdx - a.rankIdx)
+    ];
+
+    this.turn = 0; // Human starts
+    this.selectedIndices = [];
+    this.lastValidPlay = null;
+
+    this.btnRestart.style.display = 'none';
+    this.btnPlay.style.display = 'inline-block';
+    this.btnPass.style.display = 'inline-block';
+
+    CardRenderer.drawPlayedCards(this.playedCanvas, []);
+    this.updateDisplay();
+  }
+
+  updateDisplay() {
+    document.getElementById('p1-count').textContent = this.players[1].length;
+    document.getElementById('p2-count').textContent = this.players[2].length;
+
+    CardRenderer.drawHand(this.humanCanvas, this.players[0], this.selectedIndices);
+
+    // Highlight active box
+    for (let i = 0; i < 3; i++) {
+      const box = document.getElementById(`p${i}-box`);
+      if (this.turn === i) {
+        box.classList.add('active');
+      } else {
+        box.classList.remove('active');
+      }
+    }
+
+    // Action buttons state
+    if (this.turn === 0) {
+      const canPass = this.lastValidPlay && this.lastValidPlay.player !== 0;
+      this.btnPass.disabled = !canPass;
+      this.btnPlay.disabled = false;
+      this.statusText.textContent = "Your turn! Select cards to play.";
+    } else {
+      this.btnPlay.disabled = true;
+      this.btnPass.disabled = true;
+      this.statusText.textContent = `AI Player ${this.turn === 1 ? 'West' : 'East'} is thinking...`;
+    }
+  }
+
+  handleCanvasClick(e) {
+    if (this.turn !== 0) return;
+
+    const rect = this.humanCanvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const cards = this.players[0];
+    
+    if (cards.length === 0) return;
+
+    const cardWidth = 75;
+    const overlap = Math.min(35, (this.humanCanvas.width - cardWidth) / Math.max(1, cards.length - 1));
+    const startX = (this.humanCanvas.width - ((cards.length - 1) * overlap + cardWidth)) / 2;
+
+    // Check hit region from right to left (topmost drawn card first)
+    for (let i = cards.length - 1; i >= 0; i--) {
+      const x = startX + i * overlap;
+      if (clickX >= x && clickX <= (i === cards.length - 1 ? x + cardWidth : x + overlap)) {
+        const idx = this.selectedIndices.indexOf(i);
+        if (idx > -1) {
+          this.selectedIndices.splice(idx, 1);
+        } else {
+          this.selectedIndices.push(i);
+        }
+        break;
+      }
+    }
+
+    CardRenderer.drawHand(this.humanCanvas, cards, this.selectedIndices);
+  }
+
+  handleHumanPlay() {
+    if (this.selectedIndices.length === 0) return;
+
+    const selectedCards = this.selectedIndices.map(idx => this.players[0][idx]);
+    const targetAnalysis = (this.lastValidPlay && this.lastValidPlay.player !== 0) ? this.lastValidPlay.analysis : null;
+
+    if (HandRuleEngine.compare(selectedCards, targetAnalysis)) {
+      this.executePlay(0, selectedCards);
+    } else {
+      alert("Invalid selection or doesn't beat the current played cards!");
+    }
+  }
+
+  handleHumanPass() {
+    if (!this.lastValidPlay || this.lastValidPlay.player === 0) return;
+    this.statusText.textContent = "You passed.";
+    this.nextTurn();
+  }
+
+  executePlay(playerIdx, cards) {
+    // Remove played cards from hand
+    this.players[playerIdx] = this.players[playerIdx].filter(c => !cards.includes(c));
+    this.selectedIndices = [];
+
+    // Register last play
+    this.lastValidPlay = {
+      player: playerIdx,
+      cards: cards,
+      analysis: HandRuleEngine.analyze(cards)
+    };
+
+    CardRenderer.drawPlayedCards(this.playedCanvas, cards);
+
+    // Check Win
+    if (this.players[playerIdx].length === 0) {
+      this.statusText.textContent = playerIdx === 0 ? "🎉 Congratulations! You Won!" : `Game Over! AI Player ${playerIdx} Wins!`;
+      this.btnPlay.style.display = 'none';
+      this.btnPass.style.display = 'none';
+      this.btnRestart.style.display = 'inline-block';
+      return;
+    }
+
+    this.nextTurn();
+  }
+
+  nextTurn() {
+    this.turn = (this.turn + 1) % 3;
+    
+    // Clear last play if it looped back to the initiator
+    if (this.lastValidPlay && this.lastValidPlay.player === this.turn) {
+      this.lastValidPlay = null;
+      CardRenderer.drawPlayedCards(this.playedCanvas, []);
+    }
+
+    this.updateDisplay();
+
+    if (this.turn !== 0) {
+      setTimeout(() => this.runAITurn(), 1200);
+    }
+  }
+
+  runAITurn() {
+    const aiCards = this.players[this.turn];
+    const target = (this.lastValidPlay && this.lastValidPlay.player !== this.turn) ? this.lastValidPlay : null;
+
+    let cardsToPlay = null;
+
+    if (!target) {
+      // Free turn: Play lowest single card
+      cardsToPlay = [aiCards[aiCards.length - 1]];
+    } else {
+      // Basic AI logic: look for a beatable single or pair
+      const tAnalysis = target.analysis;
+
+      if (tAnalysis.type === HAND_TYPES.SINGLE) {
+        const beatable = aiCards.slice().reverse().find(c => c.rankIdx > tAnalysis.value);
+        if (beatable) cardsToPlay = [beatable];
+      } else if (tAnalysis.type === HAND_TYPES.PAIR) {
+        for (let i = aiCards.length - 1; i >= 1; i--) {
+          if (aiCards[i].rankIdx === aiCards[i - 1].rankIdx && aiCards[i].rankIdx > tAnalysis.value) {
+            cardsToPlay = [aiCards[i], aiCards[i - 1]];
+            break;
+          }
+        }
+      }
+    }
+
+    if (cardsToPlay) {
+      this.executePlay(this.turn, cardsToPlay);
+    } else {
+      this.statusText.textContent = `AI Player ${this.turn === 1 ? 'West' : 'East'} Passed.`;
+      this.nextTurn();
+    }
+  }
+}
+
+// Start Game
+window.onload = () => new Game();
+</script>
+</body>
+</html>
