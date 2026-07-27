@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>欢乐斗地主 - 多模式全端版</title>
+  <title>欢乐斗地主 - 全牌型完美竞技版</title>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <style>
     * {
@@ -83,7 +83,6 @@
     .modal-title { font-size: 20px; color: #facc15; margin-bottom: 16px; font-weight: bold; }
     .input-field { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: rgba(15, 23, 42, 0.9); color: #fff; font-size: 15px; margin-bottom: 16px; outline: none; }
 
-    /* 遮挡换手遮罩 (单机模式防偷看) */
     .handover-mask {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(15, 23, 42, 0.98); z-index: 150;
@@ -120,7 +119,7 @@
       </div>
     </div>
 
-    <!-- 1. 登录模式选择主界面 -->
+    <!-- 1. 登录模式选择界面 -->
     <div class="modal-overlay" id="login-modal">
       <div class="modal-card">
         <div class="modal-title">欢乐斗地主 - 模式选择</div>
@@ -145,10 +144,10 @@
       </div>
     </div>
 
-    <!-- 3. 离线交替遮挡遮罩 (防偷看) -->
+    <!-- 3. 离线交替防偷看遮罩 -->
     <div class="handover-mask hidden" id="handover-mask">
       <h2 style="color: #facc15; margin-bottom: 12px;" id="handover-title">请将手机递给玩家2</h2>
-      <p style="color: #cbd5e1; margin-bottom: 24px;">准备好后，点击下方按钮开始你的回合</p>
+      <p style="color: #cbd5e1; margin-bottom: 24px;">准备好后，点击下方按钮显示手牌</p>
       <button class="btn btn-gold" onclick="gameApp.confirmHandover()">我已拿好手机，显示手牌</button>
     </div>
   </div>
@@ -162,35 +161,123 @@
       'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15, '小王': 16, '大王': 17
     };
 
+    // --- 商业级：全牌型识别与压牌规则校验引擎 ---
     class CardRulesEngine {
       static parseCards(cards) {
         if (!cards || cards.length === 0) return null;
         const sorted = [...cards].sort((a, b) => a.value - b.value);
         const len = sorted.length;
         const values = sorted.map(c => c.value);
-        const counts = {};
-        values.forEach(v => counts[v] = (counts[v] || 0) + 1);
-        const cValues = Object.values(counts);
+        
+        // 频次统计
+        const freq = {};
+        values.forEach(v => freq[v] = (freq[v] || 0) + 1);
+        const keys = Object.keys(freq).map(Number).sort((a, b) => a - b);
+        const counts = Object.values(freq);
 
-        if (len === 2 && values[0] === 16 && values[1] === 17) return { type: 'KING_BOMB', value: 17, length: 2 };
-        if (len === 1) return { type: 'SINGLE', value: values[0], length: 1 };
-        if (len === 2 && values[0] === values[1]) return { type: 'PAIR', value: values[0], length: 2 };
-        if (len === 3 && cValues.length === 1) return { type: 'TRIPLE', value: values[0], length: 3 };
-        if (len === 4 && cValues.length === 1) return { type: 'BOMB', value: values[0], length: 4 };
+        // 1. 天王炸 (双王)
+        if (len === 2 && values[0] === 16 && values[1] === 17) {
+          return { type: 'KING_BOMB', value: 17, length: 2, name: '王炸' };
+        }
 
-        return null;
+        // 2. 单张
+        if (len === 1) return { type: 'SINGLE', value: values[0], length: 1, name: '单张' };
+
+        // 3. 对子
+        if (len === 2 && values[0] === values[1]) return { type: 'PAIR', value: values[0], length: 2, name: '对子' };
+
+        // 4. 三张 / 三不带
+        if (len === 3 && counts.length === 1) return { type: 'TRIPLE', value: values[0], length: 3, name: '三张' };
+
+        // 5. 三带一
+        if (len === 4 && counts.includes(3) && counts.includes(1)) {
+          const mainVal = keys.find(k => freq[k] === 3);
+          return { type: 'TRIPLE_ONE', value: mainVal, length: 4, name: '三带一' };
+        }
+
+        // 6. 三带二 / 三带对
+        if (len === 5 && counts.includes(3) && counts.includes(2)) {
+          const mainVal = keys.find(k => freq[k] === 3);
+          return { type: 'TRIPLE_PAIR', value: mainVal, length: 5, name: '三带二' };
+        }
+
+        // 7. 普通炸弹 (四张相同)
+        if (len === 4 && counts.length === 1) return { type: 'BOMB', value: values[0], length: 4, name: '炸弹' };
+
+        // 8. 四带二单
+        if (len === 6 && counts.includes(4)) {
+          const mainVal = keys.find(k => freq[k] === 4);
+          return { type: 'FOUR_TWO_SINGLE', value: mainVal, length: 6, name: '四带二' };
+        }
+
+        // 9. 四带二对
+        if (len === 8 && counts.includes(4) && counts.filter(c => c === 2).length === 2) {
+          const mainVal = keys.find(k => freq[k] === 4);
+          return { type: 'FOUR_TWO_PAIR', value: mainVal, length: 8, name: '四带两对' };
+        }
+
+        // 10. 顺子 (>= 5张，连续且最高不能超过 A/14)
+        if (len >= 5 && counts.every(c => c === 1) && values[len - 1] < 15) {
+          if (values[len - 1] - values[0] === len - 1) {
+            return { type: 'STRAIGHT', value: values[len - 1], length: len, name: '顺子' };
+          }
+        }
+
+        // 11. 连对 / 双顺 (>= 6张双数，连续对子)
+        if (len >= 6 && len % 2 === 0 && counts.every(c => c === 2) && values[len - 1] < 15) {
+          if (keys[keys.length - 1] - keys[0] === keys.length - 1) {
+            return { type: 'STRAIGHT_PAIR', value: keys[keys.length - 1], length: len, name: '连对' };
+          }
+        }
+
+        // 12. 飞机 / 飞机构对 / 飞机带单
+        const tripleKeys = keys.filter(k => freq[k] >= 3 && k < 15);
+        if (tripleKeys.length >= 2) {
+          // 检测三张连续性
+          for (let i = 0; i <= tripleKeys.length - 2; i++) {
+            let planeLen = 1;
+            while (i + planeLen < tripleKeys.length && tripleKeys[i + planeLen] === tripleKeys[i] + planeLen) {
+              planeLen++;
+            }
+            if (planeLen >= 2) {
+              const mainVal = tripleKeys[i + planeLen - 1];
+              // 12a. 纯飞机不带 (如 777888，长度 len === planeLen * 3)
+              if (len === planeLen * 3) {
+                return { type: 'PLANE', value: mainVal, length: len, name: '飞机' };
+              }
+              // 12b. 飞机带单翅膀 (如 777888 + 3 + 5，长度 len === planeLen * 4)
+              if (len === planeLen * 4) {
+                return { type: 'PLANE_SINGLE', value: mainVal, length: len, name: '飞机带单' };
+              }
+              // 12c. 飞机带对子翅膀 (如 777888 + 33 + 55，长度 len === planeLen * 5，且其余皆为对子)
+              if (len === planeLen * 5 && counts.filter(c => c === 2 || c === 4).length >= planeLen) {
+                return { type: 'PLANE_PAIR', value: mainVal, length: len, name: '飞机带对' };
+              }
+            }
+          }
+        }
+
+        return null; // 非法牌型
       }
 
+      // 压牌规则校验
       static canBeat(myHand, lastHand) {
-        if (!lastHand) return true;
+        if (!lastHand) return true; // 自由出牌
         if (!myHand) return false;
+
+        // 王炸压一切
         if (myHand.type === 'KING_BOMB') return true;
         if (lastHand.type === 'KING_BOMB') return false;
+
+        // 炸弹压普通牌
         if (myHand.type === 'BOMB' && lastHand.type !== 'BOMB') return true;
         if (lastHand.type === 'BOMB' && myHand.type !== 'BOMB') return false;
+
+        // 相同牌型：必须张数完全一致，且核心权值 Strictly 大于上家
         if (myHand.type === lastHand.type && myHand.length === lastHand.length) {
           return myHand.value > lastHand.value;
         }
+
         return false;
       }
     }
@@ -199,13 +286,13 @@
       constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.mode = 'ONLINE'; // ONLINE (在线) 或 HOTSEAT (离线同屏)
+        this.mode = 'ONLINE';
         this.user = null;
         this.roomId = null;
         
         this.myHand = [];
-        this.playerHands = [[], []]; // HOTSEAT 模式下存两个人的手牌
-        this.activePlayerIndex = 0;   // HOTSEAT 模式下的当前回合索引 (0 或 1)
+        this.playerHands = [[], []];
+        this.activePlayerIndex = 0;
         
         this.selectedIndices = new Set();
         this.tableCards = [];
@@ -264,7 +351,6 @@
         this.canvas.addEventListener('click', handlePointer);
       }
 
-      // 选择模式入口
       selectMode(selectedMode) {
         const username = document.getElementById('username-input').value.trim();
         if (!username) return alert('请输入昵称！');
@@ -275,12 +361,10 @@
         document.getElementById('login-modal').classList.add('hidden');
 
         if (this.mode === 'ONLINE') {
-          // 初始化 Socket
           socket = io(window.location.origin, { transports: ['websocket', 'polling'] });
           this.setupSocketListeners();
           document.getElementById('lobby-modal').classList.remove('hidden');
         } else {
-          // 离线面对面模式：直接进入游戏并初始化发牌
           document.getElementById('mode-text').innerText = "离线面对面";
           document.getElementById('room-id-text').innerText = "单机局";
           document.getElementById('room-badge').classList.remove('hidden');
@@ -305,7 +389,6 @@
           [deck[i], deck[j]] = [deck[j], deck[i]];
         }
 
-        // 分发给玩家1 和 玩家2
         this.playerHands[0] = deck.slice(0, 17).sort((a,b) => b.value - a.value);
         this.playerHands[1] = deck.slice(17, 34).sort((a,b) => b.value - a.value);
         
@@ -416,10 +499,10 @@
         const selectedCards = Array.from(this.selectedIndices).map(i => this.myHand[i]);
         const handInfo = CardRulesEngine.parseCards(selectedCards);
 
-        if (!handInfo) return alert('非法的出牌组合！');
+        if (!handInfo) return alert('非法的出牌组合！不符合顺子、对子、三带一、四带二或飞机等标准牌型。');
 
         if (!CardRulesEngine.canBeat(handInfo, this.lastPlayedHand)) {
-          return alert('出的牌无法压过上家！');
+          return alert(`出的牌无法压过上家！必须出相同牌型(${this.lastPlayedHand.name})且权重更大的牌，或使用炸弹/王炸。`);
         }
 
         handInfo.cardsText = selectedCards.map(c => (c.suit || '') + c.rank).join(' ');
@@ -427,11 +510,9 @@
         if (this.mode === 'ONLINE') {
           socket.emit('play_cards', { roomId: this.roomId, handInfo });
         } else {
-          // 离线交替模式处理
-          this.tableCards.push({ username: `玩家${this.activePlayerIndex + 1}`, cardsText: handInfo.cardsText });
+          this.tableCards.push({ username: `玩家${this.activePlayerIndex + 1}`, cardsText: `${handInfo.cardsText} [${handInfo.name}]` });
           this.lastPlayedHand = handInfo;
           
-          // 移除牌
           this.playerHands[this.activePlayerIndex] = this.playerHands[this.activePlayerIndex].filter((_, idx) => !this.selectedIndices.has(idx));
           
           if (this.playerHands[this.activePlayerIndex].length === 0) {
@@ -440,7 +521,6 @@
             return;
           }
 
-          // 切换到对方，弹屏防偷看
           this.activePlayerIndex = (this.activePlayerIndex + 1) % 2;
           this.myHand = this.playerHands[this.activePlayerIndex];
           this.selectedIndices.clear();
@@ -457,7 +537,8 @@
         if (this.mode === 'ONLINE') {
           socket.emit('pass_turn', { roomId: this.roomId });
         } else {
-          this.tableCards.push({ username: `玩家${this.activePlayerIndex + 1}`, cardsText: '不出' });
+          this.tableCards.push({ username: `玩家${this.activePlayerIndex + 1}`, cardsText: '不出 / 要不起' });
+          this.lastPlayedHand = null; // 对方不要，清空压牌
           this.activePlayerIndex = (this.activePlayerIndex + 1) % 2;
           this.myHand = this.playerHands[this.activePlayerIndex];
           this.selectedIndices.clear();
