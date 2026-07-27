@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>欢乐斗地主 - 多模式全端版</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box; margin: 0; padding: 0;
+      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+    }
+
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; background-color: #0b0e14;
+      display: flex; justify-content: center; align-items: center;
+    }
+
+    #game-container {
+      position: relative; width: 100vw; height: 100vh;
+      max-width: 1280px; max-height: 720px;
+      background: radial-gradient(circle at 50% 40%, #1e3a5f 0%, #0d1b2a 100%);
+      box-shadow: 0 0 50px rgba(0, 0, 0, 0.8); overflow: hidden;
+    }
+
+    #gameCanvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; touch-action: none;
+    }
+
+    .ui-layer {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+      pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 12px;
+    }
+
+    .hidden { display: none !important; }
+
+    .top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+
+    .user-profile {
+      display: flex; align-items: center; background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 215, 0, 0.3); padding: 4px 12px; border-radius: 20px;
+    }
+
+    .avatar-frame {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, #ffd700, #ff8c00);
+      display: flex; justify-content: center; align-items: center; font-weight: bold; color: #000; margin-right: 8px; font-size: 14px;
+    }
+
+    .user-name { color: #fff; font-size: 12px; font-weight: bold; }
+    .user-coins { color: #facc15; font-size: 11px; font-weight: bold; }
+
+    .btn {
+      padding: 10px 20px; border-radius: 20px; border: none; font-size: 14px; font-weight: bold;
+      cursor: pointer; outline: none; transition: transform 0.1s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); display: inline-flex; justify-content: center; align-items: center; pointer-events: auto;
+    }
+
+    .btn:active { transform: scale(0.92); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; filter: grayscale(1); }
+
+    .btn-gold { background: linear-gradient(180deg, #ffe066 0%, #f59e0b 100%); color: #78350f; }
+    .btn-blue { background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%); color: #fff; }
+    .btn-green { background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%); color: #fff; }
+    .btn-purple { background: linear-gradient(180deg, #c084fc 0%, #9333ea 100%); color: #fff; }
+    .btn-dark { background: linear-gradient(180deg, #64748b 0%, #334155 100%); color: #fff; }
+
+    .action-bar { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 20; }
+    .turn-tip { position: absolute; bottom: 170px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); border: 1px solid #facc15; padding: 6px 16px; border-radius: 20px; color: #facc15; font-weight: bold; font-size: 13px; pointer-events: none; }
+
+    .modal-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); z-index: 100;
+      display: flex; justify-content: center; align-items: center; pointer-events: auto;
+    }
+
+    .modal-card {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border: 2px solid rgba(255, 215, 0, 0.3); border-radius: 20px; padding: 24px; width: 85%; max-width: 380px; text-align: center;
+    }
+
+    .modal-title { font-size: 20px; color: #facc15; margin-bottom: 16px; font-weight: bold; }
+    .input-field { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: rgba(15, 23, 42, 0.9); color: #fff; font-size: 15px; margin-bottom: 16px; outline: none; }
+
+    /* 遮挡换手遮罩 (单机模式防偷看) */
+    .handover-mask {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.98); z-index: 150;
+      display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; text-align: center; padding: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="ui-layer">
+      <div class="top-bar">
+        <div class="user-profile">
+          <div class="avatar-frame">官</div>
+          <div>
+            <div class="user-name" id="my-name">未登录</div>
+            <div class="user-coins">🪙 <span id="my-coins">0</span></div>
+          </div>
+        </div>
+
+        <div class="room-badge hidden" id="room-badge">
+          模式: <span id="mode-text">网络模式</span> | 房间: <span id="room-id-text">-</span>
+        </div>
+      </div>
+
+      <div class="turn-tip hidden" id="turn-tip">等待游戏开始...</div>
+
+      <div class="action-bar hidden" id="action-bar">
+        <button class="btn btn-dark" id="btn-pass" onclick="gameApp.passTurn()">不出</button>
+        <button class="btn btn-blue" onclick="gameApp.sortHand()">理牌</button>
+        <button class="btn btn-green" id="btn-play" onclick="gameApp.playCards()">出牌</button>
+      </div>
+    </div>
+
+    <!-- 1. 登录模式选择主界面 -->
+    <div class="modal-overlay" id="login-modal">
+      <div class="modal-card">
+        <div class="modal-title">欢乐斗地主 - 模式选择</div>
+        <input type="text" id="username-input" class="input-field" placeholder="请输入玩家昵称..." value="JR玩家" />
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
+          <button class="btn btn-gold" onclick="gameApp.selectMode('ONLINE')">🌐 在线联机模式 (Render/云端)</button>
+          <button class="btn btn-purple" onclick="gameApp.selectMode('HOTSEAT')">📱 离线面对面模式 (飞机无网交替)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 网络联机大厅弹窗 -->
+    <div class="modal-overlay hidden" id="lobby-modal">
+      <div class="modal-card">
+        <div class="modal-title">在线大厅 (二人PK)</div>
+        <input type="text" id="room-input" class="input-field" placeholder="输入房间号 (如: 888)" value="888" />
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-blue" style="flex: 1;" onclick="gameApp.createRoom()">创建房间</button>
+          <button class="btn btn-green" style="flex: 1;" onclick="gameApp.joinRoom()">加入房间</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 离线交替遮挡遮罩 (防偷看) -->
+    <div class="handover-mask hidden" id="handover-mask">
+      <h2 style="color: #facc15; margin-bottom: 12px;" id="handover-title">请将手机递给玩家2</h2>
+      <p style="color: #cbd5e1; margin-bottom: 24px;">准备好后，点击下方按钮开始你的回合</p>
+      <button class="btn btn-gold" onclick="gameApp.confirmHandover()">我已拿好手机，显示手牌</button>
+    </div>
+  </div>
+
+  <script>
+    let socket = null;
+
+    const CARD_SUITS = { SPADE: '♠', HEART: '♥', CLUB: '♣', DIAMOND: '♦' };
+    const RANK_VALUES = {
+      '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+      'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15, '小王': 16, '大王': 17
+    };
+
+    class CardRulesEngine {
+      static parseCards(cards) {
+        if (!cards || cards.length === 0) return null;
+        const sorted = [...cards].sort((a, b) => a.value - b.value);
+        const len = sorted.length;
+        const values = sorted.map(c => c.value);
+        const counts = {};
+        values.forEach(v => counts[v] = (counts[v] || 0) + 1);
+        const cValues = Object.values(counts);
+
+        if (len === 2 && values[0] === 16 && values[1] === 17) return { type: 'KING_BOMB', value: 17, length: 2 };
+        if (len === 1) return { type: 'SINGLE', value: values[0], length: 1 };
+        if (len === 2 && values[0] === values[1]) return { type: 'PAIR', value: values[0], length: 2 };
+        if (len === 3 && cValues.length === 1) return { type: 'TRIPLE', value: values[0], length: 3 };
+        if (len === 4 && cValues.length === 1) return { type: 'BOMB', value: values[0], length: 4 };
+
+        return null;
+      }
+
+      static canBeat(myHand, lastHand) {
+        if (!lastHand) return true;
+        if (!myHand) return false;
+        if (myHand.type === 'KING_BOMB') return true;
+        if (lastHand.type === 'KING_BOMB') return false;
+        if (myHand.type === 'BOMB' && lastHand.type !== 'BOMB') return true;
+        if (lastHand.type === 'BOMB' && myHand.type !== 'BOMB') return false;
+        if (myHand.type === lastHand.type && myHand.length === lastHand.length) {
+          return myHand.value > lastHand.value;
+        }
+        return false;
+      }
+    }
+
+    class LandlordGameApp {
+      constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.mode = 'ONLINE'; // ONLINE (在线) 或 HOTSEAT (离线同屏)
+        this.user = null;
+        this.roomId = null;
+        
+        this.myHand = [];
+        this.playerHands = [[], []]; // HOTSEAT 模式下存两个人的手牌
+        this.activePlayerIndex = 0;   // HOTSEAT 模式下的当前回合索引 (0 或 1)
+        
+        this.selectedIndices = new Set();
+        this.tableCards = [];
+        this.lastPlayedHand = null;
+        this.isMyTurn = false;
+
+        this.initCanvasSize();
+        this.bindEvents();
+        requestAnimationFrame(() => this.renderLoop());
+      }
+
+      initCanvasSize() {
+        const container = document.getElementById('game-container');
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = container.clientWidth * dpr;
+        this.canvas.height = container.clientHeight * dpr;
+        this.ctx.scale(dpr, dpr);
+        this.width = container.clientWidth;
+        this.height = container.clientHeight;
+      }
+
+      bindEvents() {
+        window.addEventListener('resize', () => this.initCanvasSize());
+
+        const handlePointer = (e) => {
+          const rect = this.canvas.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+          const clickX = clientX - rect.left;
+          const clickY = clientY - rect.top;
+
+          const cardW = Math.min(60, (this.width - 40) / (this.myHand.length || 1));
+          const cardH = 88;
+          const overlap = Math.min(26, (this.width - 80) / (this.myHand.length || 1));
+          const startX = (this.width - (cardW + (this.myHand.length - 1) * overlap)) / 2;
+          const startY = this.height - cardH - 15;
+
+          for (let i = this.myHand.length - 1; i >= 0; i--) {
+            const x = startX + i * overlap;
+            const isLast = i === this.myHand.length - 1;
+            const hitW = isLast ? cardW : overlap;
+
+            if (clickX >= x && clickX <= x + hitW && clickY >= startY - 20 && clickY <= startY + cardH) {
+              if (this.selectedIndices.has(i)) {
+                this.selectedIndices.delete(i);
+              } else {
+                this.selectedIndices.add(i);
+              }
+              break;
+            }
+          }
+        };
+
+        this.canvas.addEventListener('touchstart', (e) => { handlePointer(e); e.preventDefault(); }, { passive: false });
+        this.canvas.addEventListener('click', handlePointer);
+      }
+
+      // 选择模式入口
+      selectMode(selectedMode) {
+        const username = document.getElementById('username-input').value.trim();
+        if (!username) return alert('请输入昵称！');
+        
+        this.mode = selectedMode;
+        this.user = { username, coins: 1000 };
+        document.getElementById('my-name').innerText = username;
+        document.getElementById('login-modal').classList.add('hidden');
+
+        if (this.mode === 'ONLINE') {
+          // 初始化 Socket
+          socket = io(window.location.origin, { transports: ['websocket', 'polling'] });
+          this.setupSocketListeners();
+          document.getElementById('lobby-modal').classList.remove('hidden');
+        } else {
+          // 离线面对面模式：直接进入游戏并初始化发牌
+          document.getElementById('mode-text').innerText = "离线面对面";
+          document.getElementById('room-id-text').innerText = "单机局";
+          document.getElementById('room-badge').classList.remove('hidden');
+          document.getElementById('action-bar').classList.remove('hidden');
+          document.getElementById('turn-tip').classList.remove('hidden');
+          
+          this.startHotseatGame();
+        }
+      }
+
+      startHotseatGame() {
+        const suits = [CARD_SUITS.SPADE, CARD_SUITS.HEART, CARD_SUITS.CLUB, CARD_SUITS.DIAMOND];
+        const ranks = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
+        const deck = [];
+
+        ranks.forEach(r => suits.forEach(s => deck.push({ rank: r, suit: s, value: RANK_VALUES[r] })));
+        deck.push({ rank: '小王', suit: '', value: 16 });
+        deck.push({ rank: '大王', suit: '', value: 17 });
+
+        for (let i = deck.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+
+        // 分发给玩家1 和 玩家2
+        this.playerHands[0] = deck.slice(0, 17).sort((a,b) => b.value - a.value);
+        this.playerHands[1] = deck.slice(17, 34).sort((a,b) => b.value - a.value);
+        
+        this.activePlayerIndex = 0;
+        this.myHand = this.playerHands[0];
+        this.isMyTurn = true;
+        
+        this.updateHotseatTurnUI();
+      }
+
+      updateHotseatTurnUI() {
+        const turnTip = document.getElementById('turn-tip');
+        turnTip.innerText = `👉 轮到玩家【${this.activePlayerIndex + 1}】出牌`;
+        turnTip.style.color = "#4ade80";
+        document.getElementById('btn-pass').disabled = !this.lastPlayedHand;
+      }
+
+      confirmHandover() {
+        document.getElementById('handover-mask').classList.add('hidden');
+      }
+
+      setupSocketListeners() {
+        socket.on('room_created', ({ room }) => this.updateRoomState(room));
+        socket.on('room_updated', (room) => this.updateRoomState(room));
+
+        socket.on('game_start', ({ message, room, currentTurnSocketId }) => {
+          alert(message);
+          this.updateRoomState(room);
+          document.getElementById('action-bar').classList.remove('hidden');
+          document.getElementById('turn-tip').classList.remove('hidden');
+          
+          this.dealCards();
+          this.updateTurnState(currentTurnSocketId, '', null);
+        });
+
+        socket.on('turn_changed', ({ currentTurnSocketId, username, lastPlayedHand }) => {
+          this.updateTurnState(currentTurnSocketId, username, lastPlayedHand);
+        });
+
+        socket.on('cards_played', (data) => this.tableCards.push(data));
+      }
+
+      updateTurnState(currentTurnSocketId, currentTurnUsername, lastPlayedHand) {
+        this.isMyTurn = (socket.id === currentTurnSocketId);
+        if (lastPlayedHand !== undefined) this.lastPlayedHand = lastPlayedHand;
+
+        const btnPlay = document.getElementById('btn-play');
+        const btnPass = document.getElementById('btn-pass');
+        const turnTip = document.getElementById('turn-tip');
+
+        if (this.isMyTurn) {
+          btnPlay.disabled = false;
+          btnPass.disabled = !this.lastPlayedHand || this.lastPlayedHand.playerId === socket.id;
+          turnTip.innerText = "👉 轮到你的回合，请出牌！";
+          turnTip.style.color = "#4ade80";
+        } else {
+          btnPlay.disabled = true;
+          btnPass.disabled = true;
+          turnTip.innerText = `⏳ 对方【${currentTurnUsername || '对手'}】思考中...`;
+          turnTip.style.color = "#facc15";
+        }
+      }
+
+      updateRoomState(room) {
+        document.getElementById('room-badge').classList.remove('hidden');
+        document.getElementById('room-id-text').innerText = room.id;
+      }
+
+      createRoom() {
+        const roomId = document.getElementById('room-input').value.trim();
+        if (!roomId) return;
+        document.getElementById('lobby-modal').classList.add('hidden');
+        socket.emit('create_room', { roomId, username: this.user.username });
+      }
+
+      joinRoom() {
+        const roomId = document.getElementById('room-input').value.trim();
+        if (!roomId) return;
+        document.getElementById('lobby-modal').classList.add('hidden');
+        socket.emit('join_room', { roomId, username: this.user.username });
+      }
+
+      dealCards() {
+        const suits = [CARD_SUITS.SPADE, CARD_SUITS.HEART, CARD_SUITS.CLUB, CARD_SUITS.DIAMOND];
+        const ranks = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
+        const deck = [];
+
+        ranks.forEach(r => suits.forEach(s => deck.push({ rank: r, suit: s, value: RANK_VALUES[r] })));
+        deck.push({ rank: '小王', suit: '', value: 16 });
+        deck.push({ rank: '大王', suit: '', value: 17 });
+
+        for (let i = deck.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+
+        this.myHand = deck.slice(0, 17).sort((a,b) => b.value - a.value);
+      }
+
+      sortHand() {
+        this.myHand.sort((a, b) => b.value - a.value);
+        this.selectedIndices.clear();
+      }
+
+      playCards() {
+        if (this.selectedIndices.size === 0) return alert('请选择要出的手牌！');
+
+        const selectedCards = Array.from(this.selectedIndices).map(i => this.myHand[i]);
+        const handInfo = CardRulesEngine.parseCards(selectedCards);
+
+        if (!handInfo) return alert('非法的出牌组合！');
+
+        if (!CardRulesEngine.canBeat(handInfo, this.lastPlayedHand)) {
+          return alert('出的牌无法压过上家！');
+        }
+
+        handInfo.cardsText = selectedCards.map(c => (c.suit || '') + c.rank).join(' ');
+
+        if (this.mode === 'ONLINE') {
+          socket.emit('play_cards', { roomId: this.roomId, handInfo });
+        } else {
+          // 离线交替模式处理
+          this.tableCards.push({ username: `玩家${this.activePlayerIndex + 1}`, cardsText: handInfo.cardsText });
+          this.lastPlayedHand = handInfo;
+          
+          // 移除牌
+          this.playerHands[this.activePlayerIndex] = this.playerHands[this.activePlayerIndex].filter((_, idx) => !this.selectedIndices.has(idx));
+          
+          if (this.playerHands[this.activePlayerIndex].length === 0) {
+            alert(`🎉 恭喜 玩家${this.activePlayerIndex + 1} 获得胜利！`);
+            window.location.reload();
+            return;
+          }
+
+          // 切换到对方，弹屏防偷看
+          this.activePlayerIndex = (this.activePlayerIndex + 1) % 2;
+          this.myHand = this.playerHands[this.activePlayerIndex];
+          this.selectedIndices.clear();
+
+          document.getElementById('handover-title').innerText = `请将手机递给 玩家${this.activePlayerIndex + 1}`;
+          document.getElementById('handover-mask').classList.remove('hidden');
+          this.updateHotseatTurnUI();
+        }
+
+        this.selectedIndices.clear();
+      }
+
+      passTurn() {
+        if (this.mode === 'ONLINE') {
+          socket.emit('pass_turn', { roomId: this.roomId });
+        } else {
+          this.tableCards.push({ username: `玩家${this.activePlayerIndex + 1}`, cardsText: '不出' });
+          this.activePlayerIndex = (this.activePlayerIndex + 1) % 2;
+          this.myHand = this.playerHands[this.activePlayerIndex];
+          this.selectedIndices.clear();
+
+          document.getElementById('handover-title').innerText = `请将手机递给 玩家${this.activePlayerIndex + 1}`;
+          document.getElementById('handover-mask').classList.remove('hidden');
+          this.updateHotseatTurnUI();
+        }
+      }
+
+      renderLoop() {
+        this.ctx.clearRect(0, 0, this.width, this.height);
+
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        this.ctx.font = 'bold 28px sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(this.mode === 'ONLINE' ? '斗地主 · 在线场' : '斗地主 · 面对面', this.width / 2, this.height / 2 - 30);
+
+        if (this.tableCards.length > 0) {
+          const last = this.tableCards[this.tableCards.length - 1];
+          this.ctx.fillStyle = '#facc15';
+          this.ctx.font = 'bold 15px sans-serif';
+          this.ctx.textAlign = 'center';
+          this.ctx.fillText(`${last.username}: ${last.cardsText}`, this.width / 2, this.height / 2 + 20);
+        }
+
+        if (this.myHand.length > 0) {
+          const total = this.myHand.length;
+          const cardW = Math.min(60, (this.width - 40) / total);
+          const cardH = 88;
+          const overlap = Math.min(26, (this.width - 80) / total);
+          const startX = (this.width - (cardW + (total - 1) * overlap)) / 2;
+          const startY = this.height - cardH - 15;
+
+          this.myHand.forEach((card, i) => {
+            const x = startX + i * overlap;
+            const isSelected = this.selectedIndices.has(i);
+            const drawY = isSelected ? startY - 16 : startY;
+
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.roundRect(x, drawY, cardW, cardH, 6);
+            this.ctx.fill();
+
+            this.ctx.lineWidth = isSelected ? 2 : 1;
+            this.ctx.strokeStyle = isSelected ? '#38bdf8' : '#cbd5e1';
+            this.ctx.stroke();
+
+            const isRed = card.suit === CARD_SUITS.HEART || card.suit === CARD_SUITS.DIAMOND || card.rank === '大王';
+            this.ctx.fillStyle = isRed ? '#e11d48' : '#0f172a';
+            this.ctx.font = 'bold 14px monospace';
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(card.rank, x + 4, drawY + 16);
+
+            this.ctx.font = '18px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(card.suit || (card.rank === '大王' ? '★' : '☆'), x + cardW / 2, drawY + cardH / 2 + 8);
+          });
+        }
+
+        requestAnimationFrame(() => this.renderLoop());
+      }
+    }
+
+    let gameApp;
+    window.addEventListener('DOMContentLoaded', () => { gameApp = new LandlordGameApp(); });
+  </script>
+</body>
+</html>
