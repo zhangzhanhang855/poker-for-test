@@ -1,599 +1,506 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dou Dizhu - AI Battle Arena</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #1b4332;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      overflow: hidden;
-    }
-    #game-container {
-      position: relative;
-      width: 960px;
-      height: 640px;
-      background: radial-gradient(circle, #2d6a4f 0%, #081c15 100%);
-      border: 12px solid #52b788;
-      border-radius: 20px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 20px;
-    }
-    .status-bar {
-      text-align: center;
-      font-size: 20px;
-      font-weight: bold;
-      color: #d8f3dc;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    }
-    .table-area {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 180px 1fr 180px;
-      grid-template-rows: 1fr 120px;
-      gap: 10px;
-      align-items: center;
-    }
-    .player-box {
-      background: rgba(0, 0, 0, 0.25);
-      border-radius: 10px;
-      padding: 10px;
-      text-align: center;
-    }
-    .player-box.active {
-      border: 2px solid #ffb703;
-      box-shadow: 0 0 15px rgba(255, 183, 3, 0.5);
-    }
-    .played-cards-zone {
-      grid-column: 2;
-      grid-row: 1;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    .controls {
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 10px;
-    }
-    button {
-      background: linear-gradient(180deg, #ffb703 0%, #fb8500 100%);
-      border: none;
-      color: #023047;
-      padding: 12px 28px;
-      font-size: 16px;
-      font-weight: bold;
-      border-radius: 25px;
-      cursor: pointer;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      transition: all 0.2s ease;
-    }
-    button:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 15px rgba(0,0,0,0.4);
-    }
-    button:disabled {
-      background: #6c757d;
-      color: #adb5bd;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-    #human-cards-canvas {
-      cursor: pointer;
-      display: block;
-      margin: 0 auto;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>玩家 VS AI 斗地主对战(Canvas卡牌)</title>
+    <style>
+        * {margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
+        body{
+            background:#104928;
+            color:#fff;
+            min-height:100vh;
+            padding:16px;
+        }
+        .container{
+            max-width:1100px;
+            margin:0 auto;
+        }
+        h1{text-align:center;margin-bottom:12px;font-size:22px}
+        .ai-area{
+            background:#0c3d21;
+            padding:12px;
+            border-radius:8px;
+            margin-bottom:10px;
+        }
+        .desk-area{
+            min-height:140px;
+            background:#155732;
+            border-radius:8px;
+            padding:12px;
+            margin:10px 0;
+        }
+        .player-area{
+            background:#0c3d21;
+            padding:14px;
+            border-radius:8px;
+        }
+        .canvas-wrap{
+            display:flex;
+            gap:4px;
+            flex-wrap:wrap;
+            min-height:130px;
+        }
+        canvas{
+            border-radius:6px;
+            cursor:pointer;
+            transition:transform 0.15s;
+        }
+        canvas.selected{
+            transform:translateY(-14px);
+            box-shadow:0 0 10px #ffd700;
+        }
+        .btn-group{
+            margin-top:12px;
+            display:flex;
+            gap:10px;
+        }
+        button{
+            padding:9px 20px;
+            font-size:16px;
+            border:none;
+            border-radius:6px;
+            cursor:pointer;
+        }
+        .tip{margin:8px 0;color:#ffe888;font-size:14px}
+    </style>
 </head>
 <body>
-
-<div id="game-container">
-  <div class="status-bar" id="game-status">Initializing Game...</div>
-
-  <div class="table-area">
-    <!-- Left AI -->
-    <div class="player-box" id="p1-box">
-      <h3>AI West</h3>
-      <p>Cards: <span id="p1-count">0</span></p>
+<div class="container">
+    <h1>玩家 VS AI 斗地主对战</h1>
+    <div class="ai-area">
+        <div>🤖 AI手牌 <span id="aiCount">0</span>张</div>
+        <div class="canvas-wrap" id="aiCanvasWrap"></div>
     </div>
 
-    <!-- Center Played Cards Zone -->
-    <div class="played-cards-zone">
-      <canvas id="played-canvas" width="450" height="130"></canvas>
+    <div class="desk-area">
+        <div>📋 出牌桌面 | <span class="tip" id="deskTip">等待游戏开始</span></div>
+        <div class="canvas-wrap" id="deskCanvasWrap"></div>
     </div>
 
-    <!-- Right AI -->
-    <div class="player-box" id="p2-box">
-      <h3>AI East</h3>
-      <p>Cards: <span id="p2-count">0</span></p>
+    <div class="player-area">
+        <div>👤 你的手牌</div>
+        <div class="canvas-wrap" id="playerCanvasWrap"></div>
+        <div class="btn-group">
+            <button onclick="game.playCard()">出牌</button>
+            <button onclick="game.pass()">过牌</button>
+            <button onclick="game.resetGame()">重新发牌</button>
+        </div>
+        <div class="tip" id="msgBox"></div>
     </div>
-  </div>
-
-  <!-- Human Player Area -->
-  <div class="player-box active" id="p0-box" style="grid-column: 1 / -1;">
-    <canvas id="human-cards-canvas" width="800" height="140"></canvas>
-    <div class="controls">
-      <button id="btn-play">Play Selected</button>
-      <button id="btn-pass">Pass</button>
-      <button id="btn-restart" style="display:none;">New Game</button>
-    </div>
-  </div>
 </div>
 
 <script>
-/**
- * ------------------------------------------------------------------
- * 1. CARD & SUIT DEFINITIONS
- * ------------------------------------------------------------------
- */
-const SUITS = { HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣', SPADES: '♠' };
-const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2', 'Black Joker', 'Red Joker'];
+// 扑克牌配置
+const CARD_WIDTH = 72;
+const CARD_HEIGHT = 104;
+// 牌值:3,4,5,6,7,8,9,10,J,Q,K,A,2,小王,大王
+const CARD_VALUES = [3,4,5,6,7,8,9,10,11,12,13,14,15,16,17];
+const VALUE_TEXT = {3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K',14:'A',15:'2',16:'🖤',17:'❤️'};
+// 花色 0黑桃 1红桃 2梅花 3方块，大小王无花色
+const SUITS = [{name:'♠',color:'#000'},{name:'♥',color:'#d62828'},{name:'♣',color:'#000'},{name:'♦',color:'#d62828'}];
 
-class Card {
-  constructor(rankIdx, suit = null) {
-    this.rankIdx = rankIdx; // 0 to 14
-    this.suit = suit;
-    this.selected = false;
-  }
-
-  get name() {
-    return RANKS[this.rankIdx];
-  }
-
-  get isJoker() {
-    return this.rankIdx >= 13;
-  }
-
-  get isRed() {
-    return this.suit === SUITS.HEARTS || this.suit === SUITS.DIAMONDS || this.rankIdx === 14;
-  }
-}
-
-/**
- * ------------------------------------------------------------------
- * 2. CANVAS RENDERING ENGINE
- * ------------------------------------------------------------------
- */
-class CardRenderer {
-  static drawCard(ctx, card, x, y, width = 75, height = 105) {
-    ctx.save();
-    
-    // Shadow
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetY = 3;
-
-    // Body
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, 8);
-    ctx.fill();
-
-    // Reset shadow for text
-    ctx.shadowColor = 'transparent';
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = '#cccccc';
-    ctx.stroke();
-
-    ctx.fillStyle = card.isRed ? '#d90429' : '#212529';
-
-    if (card.isJoker) {
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText(card.rankIdx === 14 ? 'RED' : 'BLK', x + 8, y + 22);
-      ctx.fillText('JOKER', x + 8, y + 40);
-    } else {
-      ctx.font = 'bold 18px sans-serif';
-      ctx.fillText(card.name, x + 8, y + 22);
-      ctx.font = '16px sans-serif';
-      ctx.fillText(card.suit, x + 10, y + 42);
-      
-      // Large center icon
-      ctx.font = '28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(card.suit, x + width / 2, y + height / 2 + 10);
+// Canvas绘制单张卡牌函数
+function drawCard(canvas, cardValue, suitIndex, isBack=false){
+    const ctx = canvas.getContext('2d');
+    canvas.width=CARD_WIDTH;
+    canvas.height=CARD_HEIGHT;
+    ctx.clearRect(0,0,CARD_WIDTH,CARD_HEIGHT);
+    if(isBack){
+        // 牌背面
+        ctx.fillStyle="#2357b8";
+        ctx.fillRect(0,0,CARD_WIDTH,CARD_HEIGHT);
+        ctx.strokeStyle="#fff";
+        ctx.lineWidth=2;
+        ctx.strokeRect(3,3,CARD_WIDTH-6,CARD_HEIGHT-6);
+        return;
     }
+    // 牌正面白底
+    ctx.fillStyle="#ffffff";
+    ctx.fillRect(0,0,CARD_WIDTH,CARD_HEIGHT);
+    ctx.strokeStyle="#999";
+    ctx.strokeRect(1,1,CARD_WIDTH-2,CARD_HEIGHT-2);
 
-    ctx.restore();
-  }
+    let isJoker = cardValue>=16;
+    if(isJoker){
+        // 大小王
+        ctx.fillStyle = cardValue===17?"#d62828":"#000";
+        ctx.font="bold 28px sans-serif";
+        ctx.textAlign="center";
+        ctx.fillText(VALUE_TEXT[cardValue], CARD_WIDTH/2, CARD_HEIGHT/2+8);
+        return;
+    }
+    const suit = SUITS[suitIndex];
+    ctx.fillStyle = suit.color;
+    ctx.font="bold 20px sans-serif";
+    ctx.textAlign="left";
+    ctx.fillText(VALUE_TEXT[cardValue], 6,24);
+    ctx.font="24px sans-serif";
+    ctx.fillText(suit.name,6,50);
 
-  static drawHand(canvas, cards, selectedIndices = []) {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (cards.length === 0) return;
-
-    const cardWidth = 75;
-    const cardHeight = 105;
-    const overlap = Math.min(35, (canvas.width - cardWidth) / Math.max(1, cards.length - 1));
-    const startX = (canvas.width - ((cards.length - 1) * overlap + cardWidth)) / 2;
-
-    cards.forEach((card, i) => {
-      const isSelected = selectedIndices.includes(i);
-      const x = startX + i * overlap;
-      const y = isSelected ? 10 : 30; // Elevated if selected
-      this.drawCard(ctx, card, x, y, cardWidth, cardHeight);
-    });
-  }
-
-  static drawPlayedCards(canvas, cards) {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (!cards || cards.length === 0) return;
-
-    const cardWidth = 60;
-    const cardHeight = 84;
-    const overlap = 22;
-    const startX = (canvas.width - ((cards.length - 1) * overlap + cardWidth)) / 2;
-
-    cards.forEach((card, i) => {
-      const x = startX + i * overlap;
-      const y = (canvas.height - cardHeight) / 2;
-      this.drawCard(ctx, card, x, y, cardWidth, cardHeight);
-    });
-  }
+    ctx.textAlign="right";
+    ctx.fillText(VALUE_TEXT[cardValue], CARD_WIDTH-6, CARD_HEIGHT-8);
+    ctx.fillText(suit.name, CARD_WIDTH-6, CARD_HEIGHT-32);
 }
 
-/**
- * ------------------------------------------------------------------
- * 3. HAND TYPE RECOGNITION & COMPARISON RULES
- * ------------------------------------------------------------------
- */
-const HAND_TYPES = {
-  INVALID: 0,
-  SINGLE: 1,
-  PAIR: 2,
-  TRIPLE: 3,
-  TRIPLE_WITH_SINGLE: 4,
-  TRIPLE_WITH_PAIR: 5,
-  STRAIGHT: 6,
-  DOUBLE_STRAIGHT: 7,
-  BOMB: 8,
-  ROCKET: 9
+// 牌型解析工具
+const CardUtil = {
+    sortCards(list){
+        return [...list].sort((a,b)=>a.value - b.value);
+    },
+    getValueList(list){
+        return list.map(c=>c.value);
+    },
+    countMap(vlist){
+        const map = {};
+        vlist.forEach(v=>map[v]=(map[v]||0)+1);
+        return map;
+    },
+    // 判断牌型，返回 {type:string,weight:number} 非法返回null
+    checkType(cards){
+        const len = cards.length;
+        const vlst = this.getValueList(cards);
+        const cnt = this.countMap(vlst);
+        const keys = Object.keys(cnt).map(Number).sort((a,b)=>a-b);
+        const maxCnt = Math.max(...Object.values(cnt));
+        const minCnt = Math.min(...Object.values(cnt));
+        const hasJoker16 = vlst.includes(16);
+        const hasJoker17 = vlst.includes(17);
+
+        // 王炸
+        if(len===2 && hasJoker16 && hasJoker17){
+            return {type:"rocket",weight:10000,main:99};
+        }
+        // 炸弹4张同值
+        if(len===4 && maxCnt===4){
+            return {type:"bomb",weight:8000,main:keys[0]};
+        }
+        // 单张
+        if(len===1){
+            return {type:"single",weight:100,main:vlst[0]};
+        }
+        // 对子
+        if(len===2 && maxCnt===2){
+            return {type:"pair",weight:200,main:keys[0]};
+        }
+        // 三张
+        if(len===3 && maxCnt===3){
+            return {type:"triple",weight:300,main:keys[0]};
+        }
+        // 三带一 4张 3+1
+        if(len===4 && maxCnt===3){
+            const mainV = keys.find(k=>cnt[k]===3);
+            return {type:"tripleOne",weight:350,main:mainV};
+        }
+        // 三带对 5张 3+2
+        if(len===5 && maxCnt===3 && minCnt===2){
+            const mainV = keys.find(k=>cnt[k]===3);
+            return {type:"triplePair",weight:380,main:mainV};
+        }
+        // 顺子：5张以上连续，不含2、王
+        if(len>=5){
+            const no2noJoker = vlst.every(v=>v<=14);
+            if(no2noJoker){
+                const s = [...new Set(vlst)].sort((a,b)=>a-b);
+                if(s.length===len && s[s.length-1]-s[0] === len-1){
+                    return {type:"straight",weight:400,main:s[0]};
+                }
+            }
+        }
+        // 连对：>=3对，连续，无2王
+        if(len>=6 && len%2===0){
+            const pairNum = len/2;
+            if(Object.values(cnt).every(x=>x===2)){
+                const s = keys.filter(k=>k<=14).sort((a,b)=>a-b);
+                if(s.length===pairNum && s[s.length-1]-s[0] === pairNum-1){
+                    return {type:"doubleStraight",weight:450,main:s[0]};
+                }
+            }
+        }
+        // 飞机：>=2个三张
+        const tripleList = keys.filter(k=>cnt[k]===3).sort((a,b)=>a-b);
+        if(tripleList.length>=2){
+            const planeCount = tripleList.length;
+            const total = planeCount*3;
+            // 纯飞机
+            if(len === total){
+                if(tripleList[tripleList.length-1]-tripleList[0] === planeCount-1 && tripleList.every(v=>v<=14)){
+                    return {type:"plane",weight:500,main:tripleList[0]};
+                }
+            }
+            // 飞机带单翅膀 total + planeCount
+            if(len === total + planeCount){
+                if(tripleList[tripleList.length-1]-tripleList[0] === planeCount-1 && tripleList.every(v=>v<=14)){
+                    return {type:"planeOne",weight:530,main:tripleList[0]};
+                }
+            }
+            // 飞机带对翅膀 total + planeCount*2
+            if(len === total + planeCount*2){
+                if(tripleList[tripleList.length-1]-tripleList[0] === planeCount-1 && tripleList.every(v=>v<=14)){
+                    return {type:"planePair",weight:560,main:tripleList[0]};
+                }
+            }
+        }
+        // 四带二：4+任意两张（可对子），不能当炸弹
+        if(len===6 && maxCnt===4){
+            const mainV = keys.find(k=>cnt[k]===4);
+            return {type:"fourTwo",weight:600,main:mainV};
+        }
+        return null;
+    },
+    // 判断新牌是否大于上家牌
+    isBigger(prevInfo, newInfo){
+        if(!newInfo) return false;
+        // 王炸最大
+        if(newInfo.type==="rocket") return true;
+        if(prevInfo.type==="rocket") return false;
+        // 炸弹大于普通牌型
+        if(newInfo.type==="bomb" && prevInfo.type!=="bomb") return true;
+        // 同牌型比较
+        if(newInfo.type === prevInfo.type){
+            return newInfo.main > prevInfo.main;
+        }
+        return false;
+    }
 };
 
-class HandRuleEngine {
-  static analyze(cards) {
-    const len = cards.length;
-    if (len === 0) return { type: HAND_TYPES.INVALID, value: 0 };
-
-    const sorted = [...cards].sort((a, b) => a.rankIdx - b.rankIdx);
-    const counts = {};
-    sorted.forEach(c => counts[c.rankIdx] = (counts[c.rankIdx] || 0) + 1);
-    
-    const uniqueRanks = Object.keys(counts).map(Number).sort((a, b) => a - b);
-
-    // Rocket (Double Joker)
-    if (len === 2 && sorted[0].rankIdx === 13 && sorted[1].rankIdx === 14) {
-      return { type: HAND_TYPES.ROCKET, value: 14 };
+// 游戏主类
+class DdzGame{
+    constructor(){
+        this.allCards = [];
+        this.playerCards = [];
+        this.aiCards = [];
+        this.selectedPlayerCards = [];
+        this.lastPlayInfo = null; // 上一轮出牌信息
+        this.lastPlayCards = [];
+        this.isPlayerTurn = true;
+        this.msgBox = document.getElementById('msgBox');
+        this.deskTip = document.getElementById('deskTip');
+        this.playerWrap = document.getElementById('playerCanvasWrap');
+        this.aiWrap = document.getElementById('aiCanvasWrap');
+        this.deskWrap = document.getElementById('deskCanvasWrap');
+        this.resetGame();
     }
 
-    // Single
-    if (len === 1) {
-      return { type: HAND_TYPES.SINGLE, value: sorted[0].rankIdx };
-    }
-
-    // Pair
-    if (len === 2 && uniqueRanks.length === 1) {
-      return { type: HAND_TYPES.PAIR, value: uniqueRanks[0] };
-    }
-
-    // Bomb
-    if (len === 4 && uniqueRanks.length === 1) {
-      return { type: HAND_TYPES.BOMB, value: uniqueRanks[0] };
-    }
-
-    // Triple
-    if (len === 3 && uniqueRanks.length === 1) {
-      return { type: HAND_TYPES.TRIPLE, value: uniqueRanks[0] };
-    }
-
-    // Triple with Single
-    if (len === 4 && uniqueRanks.length === 2) {
-      const tripleRank = uniqueRanks.find(r => counts[r] === 3);
-      if (tripleRank !== undefined) {
-        return { type: HAND_TYPES.TRIPLE_WITH_SINGLE, value: tripleRank };
-      }
-    }
-
-    // Triple with Pair
-    if (len === 5 && uniqueRanks.length === 2) {
-      const tripleRank = uniqueRanks.find(r => counts[r] === 3);
-      const pairRank = uniqueRanks.find(r => counts[r] === 2);
-      if (tripleRank !== undefined && pairRank !== undefined) {
-        return { type: HAND_TYPES.TRIPLE_WITH_PAIR, value: tripleRank };
-      }
-    }
-
-    // Straight (5+ consecutive cards, max 2 / rankIdx 12)
-    if (len >= 5 && uniqueRanks.length === len && uniqueRanks[uniqueRanks.length - 1] < 12) {
-      let isConsecutive = true;
-      for (let i = 0; i < uniqueRanks.length - 1; i++) {
-        if (uniqueRanks[i + 1] - uniqueRanks[i] !== 1) {
-          isConsecutive = false;
-          break;
+    // 生成完整54张牌
+    buildDeck(){
+        const deck = [];
+        // 普通牌
+        for(let v=3;v<=15;v++){
+            for(let s=0;s<4;s++){
+                deck.push({value:v,suit:s,id:`${v}_${s}_${Math.random()}`});
+            }
         }
-      }
-      if (isConsecutive) return { type: HAND_TYPES.STRAIGHT, value: uniqueRanks[0], length: len };
-    }
-
-    // Double Straight (3+ pairs consecutive)
-    if (len >= 6 && len % 2 === 0 && uniqueRanks.length === len / 2 && uniqueRanks[uniqueRanks.length - 1] < 12) {
-      const allPairs = uniqueRanks.every(r => counts[r] === 2);
-      let isConsecutive = true;
-      for (let i = 0; i < uniqueRanks.length - 1; i++) {
-        if (uniqueRanks[i + 1] - uniqueRanks[i] !== 1) {
-          isConsecutive = false;
-          break;
+        // 大小王
+        deck.push({value:16,suit:-1,id:'jok_small'});
+        deck.push({value:17,suit:-1,id:'jok_big'});
+        //洗牌
+        for(let i=deck.length-1;i>0;i--){
+            const j = Math.floor(Math.random()*(i+1));
+            [deck[i],deck[j]] = [deck[j],deck[i]];
         }
-      }
-      if (allPairs && isConsecutive) {
-        return { type: HAND_TYPES.DOUBLE_STRAIGHT, value: uniqueRanks[0], length: len };
-      }
+        return deck;
     }
 
-    return { type: HAND_TYPES.INVALID, value: 0 };
-  }
-
-  static compare(candidateCards, targetAnalysis) {
-    const cand = this.analyze(candidateCards);
-    if (cand.type === HAND_TYPES.INVALID) return false;
-
-    // No existing target to beat
-    if (!targetAnalysis || targetAnalysis.type === HAND_TYPES.INVALID) return true;
-
-    // Rocket beats everything
-    if (cand.type === HAND_TYPES.ROCKET) return true;
-
-    // Bomb beats non-bombs
-    if (cand.type === HAND_TYPES.BOMB && targetAnalysis.type !== HAND_TYPES.BOMB && targetAnalysis.type !== HAND_TYPES.ROCKET) {
-      return true;
+    resetGame(){
+        this.allCards = this.buildDeck();
+        this.playerCards = this.allCards.slice(0,20);
+        this.aiCards = this.allCards.slice(20,40);
+        this.selectedPlayerCards = [];
+        this.lastPlayInfo=null;
+        this.lastPlayCards=[];
+        this.isPlayerTurn=true;
+        this.clearDesk();
+        this.renderAll();
+        this.showMsg("新游戏开始，请选择手牌出牌");
     }
 
-    // Same hand type checks
-    if (cand.type === targetAnalysis.type) {
-      if (cand.type === HAND_TYPES.STRAIGHT || cand.type === HAND_TYPES.DOUBLE_STRAIGHT) {
-        return cand.length === targetAnalysis.length && cand.value > targetAnalysis.value;
-      }
-      return cand.value > targetAnalysis.value;
+    showMsg(text){
+        this.msgBox.innerText = text;
     }
 
-    return false;
-  }
+    clearDesk(){
+        this.deskWrap.innerHTML='';
+        this.deskTip.innerText="桌面已清空";
+    }
+
+    // 渲染玩家手牌，生成canvas，支持点击选中
+    renderPlayer(){
+        this.playerWrap.innerHTML='';
+        const sorted = CardUtil.sortCards(this.playerCards);
+        sorted.forEach(card=>{
+            const cnv = document.createElement('canvas');
+            cnv.dataset.id = card.id;
+            const sel = this.selectedPlayerCards.find(x=>x.id===card.id);
+            if(sel) cnv.classList.add('selected');
+            drawCard(cnv, card.value, card.suit, false);
+            cnv.onclick=()=>{
+                if(!this.isPlayerTurn) return;
+                const idx = this.selectedPlayerCards.findIndex(x=>x.id===card.id);
+                if(idx>=0){
+                    this.selectedPlayerCards.splice(idx,1);
+                }else{
+                    this.selectedPlayerCards.push(card);
+                }
+                this.renderPlayer();
+            };
+            this.playerWrap.appendChild(cnv);
+        })
+    }
+
+    renderAi(){
+        this.aiWrap.innerHTML='';
+        document.getElementById('aiCount').innerText=this.aiCards.length;
+        this.aiCards.forEach(()=>{
+            const cnv = document.createElement('canvas');
+            drawCard(cnv,0,0,true);
+            this.aiWrap.appendChild(cnv);
+        })
+    }
+
+    renderDesk(cardList){
+        this.deskWrap.innerHTML='';
+        cardList.forEach(card=>{
+            const cnv = document.createElement('canvas');
+            drawCard(cnv,card.value,card.suit,false);
+            this.deskWrap.appendChild(cnv);
+        })
+    }
+
+    renderAll(){
+        this.renderPlayer();
+        this.renderAi();
+    }
+
+    // 玩家出牌
+    playCard(){
+        if(!this.isPlayerTurn){
+            this.showMsg("不是你的回合");
+            return;
+        }
+        const sel = [...this.selectedPlayerCards];
+        if(sel.length===0){
+            this.showMsg("请先点击选择手牌");
+            return;
+        }
+        const typeInfo = CardUtil.checkType(sel);
+        if(!typeInfo){
+            this.showMsg("❌非法牌型！");
+            return;
+        }
+        // 如果上一轮有人出牌，必须大于上家
+        if(this.lastPlayInfo){
+            if(!CardUtil.isBigger(this.lastPlayInfo, typeInfo)){
+                this.showMsg("❌牌力不够，压不住上家！");
+                return;
+            }
+        }
+        // 移除打出的牌
+        sel.forEach(c=>{
+            const pidx = this.playerCards.findIndex(x=>x.id===c.id);
+            if(pidx>=0) this.playerCards.splice(pidx,1);
+        });
+        this.selectedPlayerCards=[];
+        this.lastPlayInfo = typeInfo;
+        this.lastPlayCards = sel;
+        this.renderDesk(sel);
+        this.deskTip.innerText = `你打出牌型:${typeInfo.type}`;
+        this.renderAll();
+        // 判断玩家胜利
+        if(this.playerCards.length===0){
+            this.showMsg("🎉恭喜，你胜利！点重新发牌再来一局");
+            this.isPlayerTurn=false;
+            return;
+        }
+        // 切换AI回合
+        this.isPlayerTurn=false;
+        setTimeout(()=>this.aiTurn(),700);
+    }
+
+    pass(){
+        if(!this.isPlayerTurn) return;
+        if(!this.lastPlayInfo){
+            this.showMsg("还没有人出牌，不能过牌");
+            return;
+        }
+        this.showMsg("你选择过牌");
+        this.selectedPlayerCards=[];
+        this.isPlayerTurn=false;
+        setTimeout(()=>this.aiTurn(),600);
+    }
+
+    // AI简单逻辑：优先找能压的牌，压不过就过
+    aiTurn(){
+        // AI找可以压住lastPlayInfo的组合，简易AI
+        let aiPlayResult = this.aiFindPlay(this.aiCards, this.lastPlayInfo);
+        if(aiPlayResult === null){
+            // AI过牌，清空桌面，回到玩家，可以重新出牌
+            this.showMsg("🤖AI选择过牌");
+            this.lastPlayInfo=null;
+            this.lastPlayCards=[];
+            this.clearDesk();
+            this.isPlayerTurn=true;
+            return;
+        }
+        // AI出牌
+        const outCards = aiPlayResult.cards;
+        outCards.forEach(c=>{
+            const idx = this.aiCards.findIndex(x=>x.id===c.id);
+            if(idx>=0) this.aiCards.splice(idx,1);
+        });
+        this.lastPlayInfo = aiPlayResult.info;
+        this.lastPlayCards = outCards;
+        this.renderDesk(outCards);
+        this.deskTip.innerText = `AI打出牌型:${aiPlayResult.info.type}`;
+        this.renderAll();
+        // AI胜利
+        if(this.aiCards.length===0){
+            this.showMsg("💀AI获胜，请重新发牌");
+            this.isPlayerTurn=false;
+            return;
+        }
+        this.isPlayerTurn=true;
+    }
+
+    // AI简易搜索：只简单尝试：炸弹、单张、对子，基础演示，复杂牌型简化处理
+    aiFindPlay(hand, prevInfo){
+        if(!prevInfo) return null;
+        // 简易AI实现，仅演示框架；完整AI算法会非常庞大
+        const allCombos = this.getSimpleCombo(hand);
+        for(const cb of allCombos){
+            const t = CardUtil.checkType(cb);
+            if(t && CardUtil.isBigger(prevInfo, t)){
+                return {cards:cb,info:t};
+            }
+        }
+        return null;
+    }
+
+    getSimpleCombo(hand){
+        const res=[];
+        // 全部单张
+        hand.forEach(c=>res.push([c]));
+        // 对子
+        for(let i=0;i<hand.length;i++){
+            for(let j=i+1;j<hand.length;j++){
+                if(hand[i].value===hand[j].value){
+                    res.push([hand[i],hand[j]]);
+                }
+            }
+        }
+        //炸弹
+        const map = CardUtil.countMap(hand.map(x=>x.value));
+        Object.keys(map).forEach(v=>{
+            if(map[v]===4){
+                const four = hand.filter(c=>c.value===Number(v));
+                res.push(four.slice(0,4));
+            }
+        })
+        return res;
+    }
 }
 
-/**
- * ------------------------------------------------------------------
- * 4. GAME STATE & AI LOGIC
- * ------------------------------------------------------------------
- */
-class Game {
-  constructor() {
-    this.players = [[], [], []]; // 0: Human, 1: AI West, 2: AI East
-    this.turn = 0;
-    this.selectedIndices = [];
-    this.lastValidPlay = null; // { player: index, cards: [], analysis: {} }
-    
-    this.initUI();
-    this.resetGame();
-  }
-
-  initUI() {
-    this.humanCanvas = document.getElementById('human-cards-canvas');
-    this.playedCanvas = document.getElementById('played-canvas');
-    this.btnPlay = document.getElementById('btn-play');
-    this.btnPass = document.getElementById('btn-pass');
-    this.btnRestart = document.getElementById('btn-restart');
-    this.statusText = document.getElementById('game-status');
-
-    this.humanCanvas.addEventListener('click', (e) => this.handleCanvasClick(e));
-    this.btnPlay.addEventListener('click', () => this.handleHumanPlay());
-    this.btnPass.addEventListener('click', () => this.handleHumanPass());
-    this.btnRestart.addEventListener('click', () => this.resetGame());
-  }
-
-  resetGame() {
-    // Generate deck
-    let deck = [];
-    for (let r = 0; r < 13; r++) {
-      for (let s of Object.values(SUITS)) {
-        deck.push(new Card(r, s));
-      }
-    }
-    deck.push(new Card(13)); // Black Joker
-    deck.push(new Card(14)); // Red Joker
-
-    // Shuffle
-    deck.sort(() => Math.random() - 0.5);
-
-    // Deal 17 cards to each
-    this.players = [
-      deck.slice(0, 17).sort((a, b) => b.rankIdx - a.rankIdx),
-      deck.slice(17, 34).sort((a, b) => b.rankIdx - a.rankIdx),
-      deck.slice(34, 51).sort((a, b) => b.rankIdx - a.rankIdx)
-    ];
-
-    this.turn = 0; // Human starts
-    this.selectedIndices = [];
-    this.lastValidPlay = null;
-
-    this.btnRestart.style.display = 'none';
-    this.btnPlay.style.display = 'inline-block';
-    this.btnPass.style.display = 'inline-block';
-
-    CardRenderer.drawPlayedCards(this.playedCanvas, []);
-    this.updateDisplay();
-  }
-
-  updateDisplay() {
-    document.getElementById('p1-count').textContent = this.players[1].length;
-    document.getElementById('p2-count').textContent = this.players[2].length;
-
-    CardRenderer.drawHand(this.humanCanvas, this.players[0], this.selectedIndices);
-
-    // Highlight active box
-    for (let i = 0; i < 3; i++) {
-      const box = document.getElementById(`p${i}-box`);
-      if (this.turn === i) {
-        box.classList.add('active');
-      } else {
-        box.classList.remove('active');
-      }
-    }
-
-    // Action buttons state
-    if (this.turn === 0) {
-      const canPass = this.lastValidPlay && this.lastValidPlay.player !== 0;
-      this.btnPass.disabled = !canPass;
-      this.btnPlay.disabled = false;
-      this.statusText.textContent = "Your turn! Select cards to play.";
-    } else {
-      this.btnPlay.disabled = true;
-      this.btnPass.disabled = true;
-      this.statusText.textContent = `AI Player ${this.turn === 1 ? 'West' : 'East'} is thinking...`;
-    }
-  }
-
-  handleCanvasClick(e) {
-    if (this.turn !== 0) return;
-
-    const rect = this.humanCanvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const cards = this.players[0];
-    
-    if (cards.length === 0) return;
-
-    const cardWidth = 75;
-    const overlap = Math.min(35, (this.humanCanvas.width - cardWidth) / Math.max(1, cards.length - 1));
-    const startX = (this.humanCanvas.width - ((cards.length - 1) * overlap + cardWidth)) / 2;
-
-    // Check hit region from right to left (topmost drawn card first)
-    for (let i = cards.length - 1; i >= 0; i--) {
-      const x = startX + i * overlap;
-      if (clickX >= x && clickX <= (i === cards.length - 1 ? x + cardWidth : x + overlap)) {
-        const idx = this.selectedIndices.indexOf(i);
-        if (idx > -1) {
-          this.selectedIndices.splice(idx, 1);
-        } else {
-          this.selectedIndices.push(i);
-        }
-        break;
-      }
-    }
-
-    CardRenderer.drawHand(this.humanCanvas, cards, this.selectedIndices);
-  }
-
-  handleHumanPlay() {
-    if (this.selectedIndices.length === 0) return;
-
-    const selectedCards = this.selectedIndices.map(idx => this.players[0][idx]);
-    const targetAnalysis = (this.lastValidPlay && this.lastValidPlay.player !== 0) ? this.lastValidPlay.analysis : null;
-
-    if (HandRuleEngine.compare(selectedCards, targetAnalysis)) {
-      this.executePlay(0, selectedCards);
-    } else {
-      alert("Invalid selection or doesn't beat the current played cards!");
-    }
-  }
-
-  handleHumanPass() {
-    if (!this.lastValidPlay || this.lastValidPlay.player === 0) return;
-    this.statusText.textContent = "You passed.";
-    this.nextTurn();
-  }
-
-  executePlay(playerIdx, cards) {
-    // Remove played cards from hand
-    this.players[playerIdx] = this.players[playerIdx].filter(c => !cards.includes(c));
-    this.selectedIndices = [];
-
-    // Register last play
-    this.lastValidPlay = {
-      player: playerIdx,
-      cards: cards,
-      analysis: HandRuleEngine.analyze(cards)
-    };
-
-    CardRenderer.drawPlayedCards(this.playedCanvas, cards);
-
-    // Check Win
-    if (this.players[playerIdx].length === 0) {
-      this.statusText.textContent = playerIdx === 0 ? "🎉 Congratulations! You Won!" : `Game Over! AI Player ${playerIdx} Wins!`;
-      this.btnPlay.style.display = 'none';
-      this.btnPass.style.display = 'none';
-      this.btnRestart.style.display = 'inline-block';
-      return;
-    }
-
-    this.nextTurn();
-  }
-
-  nextTurn() {
-    this.turn = (this.turn + 1) % 3;
-    
-    // Clear last play if it looped back to the initiator
-    if (this.lastValidPlay && this.lastValidPlay.player === this.turn) {
-      this.lastValidPlay = null;
-      CardRenderer.drawPlayedCards(this.playedCanvas, []);
-    }
-
-    this.updateDisplay();
-
-    if (this.turn !== 0) {
-      setTimeout(() => this.runAITurn(), 1200);
-    }
-  }
-
-  runAITurn() {
-    const aiCards = this.players[this.turn];
-    const target = (this.lastValidPlay && this.lastValidPlay.player !== this.turn) ? this.lastValidPlay : null;
-
-    let cardsToPlay = null;
-
-    if (!target) {
-      // Free turn: Play lowest single card
-      cardsToPlay = [aiCards[aiCards.length - 1]];
-    } else {
-      // Basic AI logic: look for a beatable single or pair
-      const tAnalysis = target.analysis;
-
-      if (tAnalysis.type === HAND_TYPES.SINGLE) {
-        const beatable = aiCards.slice().reverse().find(c => c.rankIdx > tAnalysis.value);
-        if (beatable) cardsToPlay = [beatable];
-      } else if (tAnalysis.type === HAND_TYPES.PAIR) {
-        for (let i = aiCards.length - 1; i >= 1; i--) {
-          if (aiCards[i].rankIdx === aiCards[i - 1].rankIdx && aiCards[i].rankIdx > tAnalysis.value) {
-            cardsToPlay = [aiCards[i], aiCards[i - 1]];
-            break;
-          }
-        }
-      }
-    }
-
-    if (cardsToPlay) {
-      this.executePlay(this.turn, cardsToPlay);
-    } else {
-      this.statusText.textContent = `AI Player ${this.turn === 1 ? 'West' : 'East'} Passed.`;
-      this.nextTurn();
-    }
-  }
-}
-
-// Start Game
-window.onload = () => new Game();
+const game = new DdzGame();
 </script>
 </body>
 </html>
