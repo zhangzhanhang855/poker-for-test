@@ -377,22 +377,29 @@ function initGame() {
   const deck = createDeck();
   shuffle(deck);
 
+  // 正确截取底牌与双人手牌 (每人17张)
   gameState.holeCards = deck.slice(0, 3);
-  gameState.playerHand = deck.slice(3, 20).sort((a,b) => b.weight - a.weight);
-  gameState.aiHand = deck.slice(20, 37).sort((a,b) => b.weight - a.weight);
+  gameState.playerHand = deck.slice(3, 20).sort((a, b) => b.weight - a.weight);
+  gameState.aiHand = deck.slice(20, 37).sort((a, b) => b.weight - a.weight);
+  
   gameState.lastPlay = null;
   gameState.selectedCards = [];
   gameState.phase = 'BIDDING';
   gameState.landlord = null;
   gameState.playedHistory = [];
 
-  document.getElementById('player-play-area').innerHTML = '';
-  document.getElementById('ai-play-area').innerHTML = '';
+  // 清空桌面已打出的牌
+  const pArea = document.getElementById('player-play-area');
+  const aiArea = document.getElementById('ai-play-area');
+  if (pArea) pArea.innerHTML = '';
+  if (aiArea) aiArea.innerHTML = '';
+
   renderHoleCards(true);
   renderHands();
   setupBiddingUI();
   showToast("对局开始，请选择是否叫地主");
 }
+
 
 function changeAiLevel(val) {
   gameState.aiLevel = parseInt(val);
@@ -609,6 +616,7 @@ function decomposeHand(cards) {
 function executePlay(player, cards) {
   const evalResult = evalHand(cards);
   
+  // 从玩家或 AI 手牌中精准移除打出的牌
   if (player === 'PLAYER') {
     gameState.playerHand = gameState.playerHand.filter(c => !cards.some(sc => sc.id === c.id));
     gameState.selectedCards = [];
@@ -617,6 +625,34 @@ function executePlay(player, cards) {
     gameState.aiHand = gameState.aiHand.filter(c => !cards.some(sc => sc.id === c.id));
     renderPlayedCards('ai-play-area', cards);
   }
+
+  gameState.playedHistory.push(...cards);
+  gameState.lastPlay = { player, cards, handEval: evalResult };
+  
+  // 重新绘制剩余手牌
+  renderHands();
+
+  // 胜负检测
+  if (gameState.playerHand.length === 0) {
+    showModal("对局结束", `恭喜您（${gameState.landlord === 'PLAYER' ? '地主' : '农民'}）获得胜利！`);
+    return;
+  }
+  if (gameState.aiHand.length === 0) {
+    showModal("对局结束", `AI（${gameState.landlord === 'AI' ? '地主' : '农民'}）击败了您！`);
+    return;
+  }
+
+  // 轮换回合
+  gameState.currentTurn = (player === 'PLAYER') ? 'AI' : 'PLAYER';
+  
+  if (gameState.currentTurn === 'AI') {
+    setupPlayingUI();
+    setTimeout(aiTurn, 900);
+  } else {
+    setupPlayingUI();
+  }
+}
+
 
   gameState.playedHistory.push(...cards);
   gameState.lastPlay = { player, cards, handEval: evalResult };
@@ -713,18 +749,43 @@ function renderCardDOM(card, isBack = false) {
 
 function renderHands() {
   const pContainer = document.getElementById('player-hand');
+  const aiContainer = document.getElementById('ai-hand');
+  if (!pContainer || !aiContainer) return;
+
+  // 1. 渲染玩家手牌
   pContainer.innerHTML = '';
-  
-  // 1. 只有手牌大于 0 时才渲染和计算间距
   if (gameState.playerHand && gameState.playerHand.length > 0) {
     gameState.playerHand.forEach(card => {
       const cardEl = renderCardDOM(card);
-      if (gameState.selectedCards.some(sc => sc.id === card.id)) cardEl.classList.add('selected');
+      if (gameState.selectedCards.some(sc => sc.id === card.id)) {
+        cardEl.classList.add('selected');
+      }
       cardEl.onclick = () => toggleCardSelect(card);
       pContainer.appendChild(cardEl);
     });
     updateDynamicCardSpacing(pContainer, gameState.playerHand.length);
   }
+
+  // 2. 渲染 AI 手牌（盖牌）
+  aiContainer.innerHTML = '';
+  if (gameState.aiHand && gameState.aiHand.length > 0) {
+    gameState.aiHand.forEach(() => {
+      aiContainer.appendChild(renderCardDOM(null, true));
+    });
+    updateDynamicCardSpacing(aiContainer, gameState.aiHand.length);
+  }
+
+  // 3. 更新剩余牌数 UI
+  const pCount = gameState.playerHand ? gameState.playerHand.length : 0;
+  const aiCount = gameState.aiHand ? gameState.aiHand.length : 0;
+  
+  const aiInfo = document.getElementById('ai-info');
+  const pInfo = document.getElementById('player-info');
+  
+  if (aiInfo) aiInfo.innerText = `AI 对手 (${gameState.landlord === 'AI' ? '地主' : '农民'}) - 剩余: ${aiCount}张`;
+  if (pInfo) pInfo.innerText = `玩家 (${gameState.landlord === 'PLAYER' ? '地主' : '农民'}) - 剩余: ${pCount}张`;
+}
+
 
   const aiContainer = document.getElementById('ai-hand');
   aiContainer.innerHTML = '';
