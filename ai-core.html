@@ -714,12 +714,35 @@ function renderCardDOM(card, isBack = false) {
 function renderHands() {
   const pContainer = document.getElementById('player-hand');
   pContainer.innerHTML = '';
-  gameState.playerHand.forEach(card => {
-    const cardEl = renderCardDOM(card);
-    if (gameState.selectedCards.some(sc => sc.id === card.id)) cardEl.classList.add('selected');
-    cardEl.onclick = () => toggleCardSelect(card);
-    pContainer.appendChild(cardEl);
-  });
+  
+  // 1. 只有手牌大于 0 时才渲染和计算间距
+  if (gameState.playerHand && gameState.playerHand.length > 0) {
+    gameState.playerHand.forEach(card => {
+      const cardEl = renderCardDOM(card);
+      if (gameState.selectedCards.some(sc => sc.id === card.id)) cardEl.classList.add('selected');
+      cardEl.onclick = () => toggleCardSelect(card);
+      pContainer.appendChild(cardEl);
+    });
+    updateDynamicCardSpacing(pContainer, gameState.playerHand.length);
+  }
+
+  const aiContainer = document.getElementById('ai-hand');
+  aiContainer.innerHTML = '';
+  if (gameState.aiHand && gameState.aiHand.length > 0) {
+    gameState.aiHand.forEach(() => {
+      aiContainer.appendChild(renderCardDOM(null, true));
+    });
+    updateDynamicCardSpacing(aiContainer, gameState.aiHand.length);
+  }
+
+  // 2. 避免数组为空时报错
+  const pLen = gameState.playerHand ? gameState.playerHand.length : 0;
+  const aiLen = gameState.aiHand ? gameState.aiHand.length : 0;
+
+  document.getElementById('ai-info').innerText = `AI 对手 (${gameState.landlord === 'AI' ? '地主' : '农民'}) - 剩余: ${aiLen}张`;
+  document.getElementById('player-info').innerText = `玩家 (${gameState.landlord === 'PLAYER' ? '地主' : '农民'}) - 剩余: ${pLen}张`;
+}
+
   updateDynamicCardSpacing(pContainer, gameState.playerHand.length);
 
   const aiContainer = document.getElementById('ai-hand');
