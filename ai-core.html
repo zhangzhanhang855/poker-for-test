@@ -538,27 +538,204 @@ function aiStrategyLevel3(target) {
   return null;
 }
 
+/* 段位 4：王者 (100% 算牌/全图视角/必胜斩杀/精准阻截) */
 function aiStrategyLevel4(target) {
-  const aiCards = [...gameState.aiHand];
-  const userCardCount = gameState.playerHand.length;
+  const aiCards = [...gameState.aiHand].sort((a, b) => b.weight - a.weight);
 
-  const unplayedCards = {};
-  for (let w = 3; w <= 17; w++) unplayedCards[w] = (w === 16 || w === 17) ? 1 : 4;
-  [...aiCards, ...gameState.playedHistory].forEach(c => unplayedCards[c.weight]--);
+  // 1. PERFECT INFORMATION DEDUCTION (2-Player Speciality)
+  // Deduce the human player's exact hand in real-time
+  const knownCardIds = new Set([
+    ...aiCards.map(c => c.id),
+    ...gameState.playedHistory.map(c => c.id)
+  ]);
+  const fullDeck = createDeck();
+  const userCards = fullDeck.filter(c => !knownCardIds.has(c.id)).sort((a, b) => b.weight - a.weight);
 
-  const combo = decomposeHand(aiCards);
+  // Helper: Generates all legal combinations from a set of cards
+  function getAllValidCombos(cards) {
+    const results = [];
+    const counts = {};
+    cards.forEach(c => counts[c.weight] = (counts[c.weight] || 0) + 1);
+    const weights = Object.keys(counts).map(Number).sort((a, b) => a - b);
 
-  if (!target) {
-    if (combo.straights.length > 0) return combo.straights[0];
-    if (combo.triples.length > 0) {
-      let t = combo.triples[0];
-      if (combo.singles.length > 0) return [...t, combo.singles[combo.singles.length - 1]];
-      return t;
+    // Rocket
+    if (cards.some(c => c.weight === 16) && cards.some(c => c.weight === 17)) {
+      results.push({ cards: cards.filter(c => c.weight >= 16), eval: { type: HAND_TYPES.ROCKET, weight: 17, length: 2 } });
     }
-    if (combo.pairs.length > 0) return combo.pairs[combo.pairs.length - 1];
-    if (combo.singles.length > 0) return [combo.singles[combo.singles.length - 1]];
+
+    // Bombs
+    weights.forEach(w => {
+      if (counts[w] === 4) {
+        results.push({ cards: cards.filter(c => c.weight === w), eval: { type: HAND_TYPES.BOMB, weight: w, length: 4 } });
+      }
+    });
+
+    // Singles
+    weights.forEach(w => {
+      results.push({ cards: [cards.find(c => c.weight === w)], eval: { type: HAND_TYPES.SINGLE, weight: w, length: 1 } });
+    });
+
+    // Pairs
+    weights.forEach(w => {
+      if (counts[w] >= 2) {
+        results.push({ cards: cards.filter(c => c.weight === w).slice(0, 2), eval: { type: HAND_TYPES.PAIR, weight: w, length: 2 } });
+      }
+    });
+
+    // Triples (+ Wings)
+    weights.forEach(w => {
+      if (counts[w] >= 3) {
+        const tCards = cards.filter(c => c.weight === w).slice(0, 3);
+        results.push({ cards: tCards, eval: { type: HAND_TYPES.TRIPLE, weight: w, length: 3 } });
+
+        weights.forEach(sw => {
+          if (sw !== w) {
+            const sCard = cards.find(c => c.weight === sw);
+            results.push({ cards: [...tCards, sCard], eval: { type: HAND_TYPES.TRIPLE_SINGLE, weight: w, length: 4 } });
+          }
+        });
+
+        weights.forEach(pw => {
+          if (pw !== w && counts[pw] >= 2) {
+            const pCards = cards.filter(c => c.weight === pw).slice(0, 2);
+            results.push({ cards: [...tCards, ...pCards], eval: { type: HAND_TYPES.TRIPLE_PAIR, weight: w, length: 5 } });
+          }
+        });
+      }
+    });
+
+    // Straights (5+)
+    const singleWs = weights.filter(w => w <= 14);
+    for (let len = 5; len <= singleWs.length; len++) {
+      for (let i = 0; i <= singleWs.length - len; i++) {
+        let ok = true;
+        for (let j = 0; j < len - 1; j++) {
+          if (singleWs[i + j + 1] !== singleWs[i + j] + 1) { ok = false; break; }
+        }
+        if (ok) {
+          const strCards = [];
+          for (let j = 0; j < len; j++) {
+            strCards.push(cards.find(c => c.weight === singleWs[i + j]));
+          }
+          results.push({ cards: strCards, eval: { type: HAND_TYPES.STRAIGHT, weight: singleWs[i + len - 1], length: len } });
+        }
+      }
+    }
+
+    // Double Straights (3+ Pairs)
+    const pairWs = weights.filter(w => counts[w] >= 2 && w <= 14);
+    for (let pLen = 3; pLen <= pairWs.length; pLen++) {
+      for (let i = 0; i <= pairWs.length - pLen; i++) {
+        let ok = true;
+        for (let j = 0; j < pLen - 1; j++) {
+          if (pairWs[i + j + 1] !== pairWs[i + j] + 1) { ok = false; break; }
+        }
+        if (ok) {
+          const dStrCards = [];
+          for (let j = 0; j < pLen; j++) {
+            dStrCards.push(...cards.filter(c => c.weight === pairWs[i + j]).slice(0, 2));
+          }
+          results.push({ cards: dStrCards, eval: { type: HAND_TYPES.DOUBLE_STRAIGHT, weight: pairWs[i + pLen - 1], length: pLen * 2 } });
+        }
+      }
+    }
+
+    return results;
+  }
+
+  const aiCombos = getAllValidCombos(aiCards);
+  const userCombos = getAllValidCombos(userCards);
+
+  // Helper: Checks if user can beat a given AI combination
+  function userCanBeat(comboEval) {
+    return userCombos.some(uc => canBeat(uc.eval, comboEval));
+  }
+
+  // --- SCENARIO A: AI LEADING (target === null) ---
+  if (!target) {
+    // 1. Instant Win Check: Can AI finish in 1 move?
+    const instantWin = aiCombos.find(c => c.cards.length === aiCards.length);
+    if (instantWin) return instantWin.cards;
+
+    // 2. Unblockable Kill Chain: Find a lead combo that user cannot beat,
+    // leaving remaining cards that user ALSO cannot beat.
+    for (let combo of aiCombos) {
+      if (!userCanBeat(combo.eval)) {
+        const remainingAiCards = aiCards.filter(c => !combo.cards.some(sc => sc.id === c.id));
+        if (remainingAiCards.length === 0) return combo.cards;
+
+        const remainingCombos = getAllValidCombos(remainingAiCards);
+        const guaranteedFinish = remainingCombos.find(rc => rc.cards.length === remainingAiCards.length && !userCanBeat(rc.eval));
+        if (guaranteedFinish) return combo.cards;
+      }
+    }
+
+    // 3. Strategic Anti-Player Defense Leading
+    const comboStruct = decomposeHand(aiCards);
+
+    // If player has only 1 card left, NEVER lead a single!
+    if (userCards.length === 1) {
+      if (comboStruct.pairs.length > 0) return comboStruct.pairs[comboStruct.pairs.length - 1];
+      if (comboStruct.triples.length > 0) return comboStruct.triples[0];
+      if (comboStruct.straights.length > 0) return comboStruct.straights[0];
+      return [aiCards[0]]; // Forced to single -> play highest card
+    }
+
+    // If player has 2 cards left (likely a pair), prefer leading singles
+    if (userCards.length === 2 && comboStruct.singles.length > 0) {
+      return [comboStruct.singles[comboStruct.singles.length - 1]];
+    }
+
+    // Default: Play longest straight, or smallest pair, or smallest single
+    if (comboStruct.straights.length > 0) return comboStruct.straights[0];
+    if (comboStruct.pairs.length > 0) return comboStruct.pairs[comboStruct.pairs.length - 1];
+    if (comboStruct.singles.length > 0) return [comboStruct.singles[comboStruct.singles.length - 1]];
+
     return [aiCards[aiCards.length - 1]];
   }
+
+  // --- SCENARIO B: AI FOLLOWING OPPONENT (target !== null) ---
+  const beatingCombos = aiCombos.filter(c => canBeat(c.eval, target));
+  if (beatingCombos.length === 0) return null; // Cannot beat -> Pass
+
+  // 1. Instant Win Check
+  const winningMove = beatingCombos.find(c => c.cards.length === aiCards.length);
+  if (winningMove) return winningMove.cards;
+
+  // 2. Emergency Defense Check: User has <= 2 cards or can win on next turn
+  const userCanWinNextTurn = userCombos.some(uc => uc.cards.length === userCards.length);
+  if (userCards.length <= 2 || userCanWinNextTurn) {
+    beatingCombos.sort((a, b) => a.eval.weight - b.eval.weight);
+    const nonBombMove = beatingCombos.find(c => c.eval.type !== HAND_TYPES.BOMB && c.eval.type !== HAND_TYPES.ROCKET);
+    if (nonBombMove) return nonBombMove.cards;
+    return beatingCombos[0].cards; // Use Bomb if required to intercept
+  }
+
+  // 3. Normal Economy Following (Save Bombs/Rockets)
+  const normalBeatingCombos = beatingCombos.filter(c => c.eval.type !== HAND_TYPES.BOMB && c.eval.type !== HAND_TYPES.ROCKET);
+  if (normalBeatingCombos.length > 0) {
+    normalBeatingCombos.sort((a, b) => a.eval.weight - b.eval.weight);
+
+    // Tactical Pass: Pass if opponent played a high control card (e.g. 2 or Joker) and beating it wastes AI's top card
+    if (target.weight >= 15 && normalBeatingCombos[0].eval.weight === 17) {
+      return null;
+    }
+
+    return normalBeatingCombos[0].cards;
+  }
+
+  // 4. Respond to opponent Bomb only if AI has a follow-up win plan
+  if (target.type === HAND_TYPES.BOMB) {
+    const bombBeaters = beatingCombos.filter(c => canBeat(c.eval, target));
+    if (bombBeaters.length > 0) {
+      bombBeaters.sort((a, b) => a.eval.weight - b.eval.weight);
+      return bombBeaters[0].cards;
+    }
+  }
+
+  return null; // Pass by default
+}
+
 
   if (target.type === HAND_TYPES.SINGLE && target.weight >= 13 && userCardCount > 5 && aiCards.length > 3) {
     if (Math.random() < 0.7) return null;
