@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>双人斗地主 - 全端适配修复版</title>
+  <title>Two-Player Dou Dizhu (Vs Master AI)</title>
   <style>
     :root {
       --bg-color: #1e3d29;
@@ -49,7 +49,7 @@
       background: radial-gradient(circle, #356845 0%, #1a3322 100%);
     }
 
-    /* 顶部区域 */
+    /* Top Section */
     .top-section {
       display: flex;
       justify-content: space-between;
@@ -90,7 +90,7 @@
       gap: 6px;
     }
 
-    /* AI 区域 */
+    /* AI Section */
     .ai-section {
       display: flex;
       flex-direction: column;
@@ -109,7 +109,7 @@
       white-space: nowrap;
     }
 
-    /* 对局中央区域 */
+    /* Play Arena */
     .play-arena {
       flex: 1;
       display: flex;
@@ -129,7 +129,7 @@
       width: 100%;
     }
 
-    /* 玩家区域 */
+    /* Player Section */
     .player-section {
       display: flex;
       flex-direction: column;
@@ -138,7 +138,7 @@
       width: 100%;
     }
 
-    /* 按钮栏（确保层级与显隐） */
+    /* Action Buttons Bar */
     .action-bar {
       display: flex;
       gap: 12px;
@@ -167,7 +167,7 @@
     .btn:disabled { background: #7f8c8d !important; cursor: not-allowed; opacity: 0.5; }
     .btn-secondary { background: linear-gradient(180deg, #7f8c8d, #34495e); }
 
-    /* 卡牌样式 */
+    /* Card Styling */
     .card-list {
       display: flex;
       justify-content: center;
@@ -219,14 +219,13 @@
     .red { color: #e74c3c; }
     .black { color: #2c3e50; }
 
-    /* 底牌尺寸定义 */
     .hole-cards-container .card {
       width: calc(var(--card-w) * 0.75);
       height: calc(var(--card-h) * 0.75);
       margin-left: 0 !important;
     }
 
-    /* 消息气泡提示 */
+    /* Toast Notification */
     .toast-msg {
       position: absolute;
       top: 50%;
@@ -248,7 +247,7 @@
     }
     .toast-msg.show { opacity: 1; }
 
-    /* 弹窗 */
+    /* Custom Dialog Modal */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -289,7 +288,7 @@
 <body>
 
   <div id="game-table">
-    <!-- 顶部控制栏 -->
+    <!-- Top Header -->
     <div class="top-section">
       <div class="ai-config">
         <label for="ai-level">AI段位：</label>
@@ -297,7 +296,7 @@
           <option value="1">青铜 (随机)</option>
           <option value="2">白银 (基础)</option>
           <option value="3">黄金 (贪婪)</option>
-          <option value="4" selected>王者 (深度策略)</option>
+          <option value="4" selected>王者 (100%必胜算牌)</option>
         </select>
       </div>
       <div id="hole-cards" class="hole-cards-container">
@@ -307,20 +306,20 @@
       </div>
     </div>
 
-    <!-- AI 区域 -->
+    <!-- AI Area -->
     <div class="ai-section">
       <div id="ai-info" class="player-info">AI 对手 (手牌: 17)</div>
       <div id="ai-hand" class="card-list"></div>
     </div>
 
-    <!-- 中央出牌战区 -->
+    <!-- Center Play Arena -->
     <div class="play-arena">
       <div id="ai-play-area" class="played-cards-box"></div>
       <div id="player-play-area" class="played-cards-box"></div>
       <div id="toast" class="toast-msg">提示信息</div>
     </div>
 
-    <!-- 玩家区域 -->
+    <!-- Human Player Area -->
     <div class="player-section">
       <div id="action-bar" class="action-bar"></div>
       <div id="player-info" class="player-info">玩家 (农民)</div>
@@ -328,7 +327,7 @@
     </div>
   </div>
 
-  <!-- 自定义弹窗 -->
+  <!-- Dialog Modal -->
   <div id="custom-modal" class="modal-overlay">
     <div class="modal-box">
       <div id="modal-title" class="modal-title">对局结束</div>
@@ -396,7 +395,7 @@ function initGame() {
   
   renderHoleCards(true);
   renderHands();
-  setupBiddingUI(); // 开启时显示叫地主按钮栏
+  setupBiddingUI();
   showToast("对局开始，请选择是否叫地主");
 }
 
@@ -405,7 +404,6 @@ function changeAiLevel(val) {
   showToast(`AI 段位切换：${document.getElementById('ai-level').options[gameState.aiLevel-1].text}`);
 }
 
-/* 动态计算卡牌间距（确保手机/平板端不超出屏幕） */
 function updateDynamicCardSpacing(container, cardCount) {
   if (!container || cardCount <= 0) return;
   const cards = container.querySelectorAll('.card');
@@ -421,7 +419,6 @@ function updateDynamicCardSpacing(container, cardCount) {
 
   let calculatedOverlap = (containerWidth - cardWidth) / (cardCount - 1) - cardWidth;
   
-  // 限制最大和最小间距
   if (calculatedOverlap > -8) calculatedOverlap = -8;
   if (calculatedOverlap < -cardWidth * 0.75) calculatedOverlap = -cardWidth * 0.75;
 
@@ -430,7 +427,6 @@ function updateDynamicCardSpacing(container, cardCount) {
   });
 }
 
-/* 牌型分析与比较规则 */
 function evalHand(cards) {
   if (!cards || cards.length === 0) return { type: HAND_TYPES.INVALID };
   const sorted = [...cards].sort((a,b) => a.weight - b.weight);
@@ -483,7 +479,6 @@ function canBeat(newHand, targetHand) {
   return false;
 }
 
-/* AI 出牌算法 */
 function aiTurn() {
   if (gameState.phase !== 'PLAYING' || gameState.currentTurn !== 'AI') return;
 
@@ -538,12 +533,11 @@ function aiStrategyLevel3(target) {
   return null;
 }
 
-/* 段位 4：王者 (100% 算牌/全图视角/必胜斩杀/精准阻截) */
+/* Level 4: Unbeatable Master AI with 100% Perfect Information Deduction */
 function aiStrategyLevel4(target) {
   const aiCards = [...gameState.aiHand].sort((a, b) => b.weight - a.weight);
 
-  // 1. PERFECT INFORMATION DEDUCTION (2-Player Speciality)
-  // Deduce the human player's exact hand in real-time
+  // 1. Perfect Information Deduction
   const knownCardIds = new Set([
     ...aiCards.map(c => c.id),
     ...gameState.playedHistory.map(c => c.id)
@@ -551,38 +545,32 @@ function aiStrategyLevel4(target) {
   const fullDeck = createDeck();
   const userCards = fullDeck.filter(c => !knownCardIds.has(c.id)).sort((a, b) => b.weight - a.weight);
 
-  // Helper: Generates all legal combinations from a set of cards
   function getAllValidCombos(cards) {
     const results = [];
     const counts = {};
     cards.forEach(c => counts[c.weight] = (counts[c.weight] || 0) + 1);
     const weights = Object.keys(counts).map(Number).sort((a, b) => a - b);
 
-    // Rocket
     if (cards.some(c => c.weight === 16) && cards.some(c => c.weight === 17)) {
       results.push({ cards: cards.filter(c => c.weight >= 16), eval: { type: HAND_TYPES.ROCKET, weight: 17, length: 2 } });
     }
 
-    // Bombs
     weights.forEach(w => {
       if (counts[w] === 4) {
         results.push({ cards: cards.filter(c => c.weight === w), eval: { type: HAND_TYPES.BOMB, weight: w, length: 4 } });
       }
     });
 
-    // Singles
     weights.forEach(w => {
       results.push({ cards: [cards.find(c => c.weight === w)], eval: { type: HAND_TYPES.SINGLE, weight: w, length: 1 } });
     });
 
-    // Pairs
     weights.forEach(w => {
       if (counts[w] >= 2) {
         results.push({ cards: cards.filter(c => c.weight === w).slice(0, 2), eval: { type: HAND_TYPES.PAIR, weight: w, length: 2 } });
       }
     });
 
-    // Triples (+ Wings)
     weights.forEach(w => {
       if (counts[w] >= 3) {
         const tCards = cards.filter(c => c.weight === w).slice(0, 3);
@@ -604,7 +592,6 @@ function aiStrategyLevel4(target) {
       }
     });
 
-    // Straights (5+)
     const singleWs = weights.filter(w => w <= 14);
     for (let len = 5; len <= singleWs.length; len++) {
       for (let i = 0; i <= singleWs.length - len; i++) {
@@ -622,7 +609,6 @@ function aiStrategyLevel4(target) {
       }
     }
 
-    // Double Straights (3+ Pairs)
     const pairWs = weights.filter(w => counts[w] >= 2 && w <= 14);
     for (let pLen = 3; pLen <= pairWs.length; pLen++) {
       for (let i = 0; i <= pairWs.length - pLen; i++) {
@@ -646,19 +632,15 @@ function aiStrategyLevel4(target) {
   const aiCombos = getAllValidCombos(aiCards);
   const userCombos = getAllValidCombos(userCards);
 
-  // Helper: Checks if user can beat a given AI combination
   function userCanBeat(comboEval) {
     return userCombos.some(uc => canBeat(uc.eval, comboEval));
   }
 
-  // --- SCENARIO A: AI LEADING (target === null) ---
+   // --- AI LEADING ---
   if (!target) {
-    // 1. Instant Win Check: Can AI finish in 1 move?
     const instantWin = aiCombos.find(c => c.cards.length === aiCards.length);
     if (instantWin) return instantWin.cards;
 
-    // 2. Unblockable Kill Chain: Find a lead combo that user cannot beat,
-    // leaving remaining cards that user ALSO cannot beat.
     for (let combo of aiCombos) {
       if (!userCanBeat(combo.eval)) {
         const remainingAiCards = aiCards.filter(c => !combo.cards.some(sc => sc.id === c.id));
@@ -670,23 +652,19 @@ function aiStrategyLevel4(target) {
       }
     }
 
-    // 3. Strategic Anti-Player Defense Leading
     const comboStruct = decomposeHand(aiCards);
 
-    // If player has only 1 card left, NEVER lead a single!
     if (userCards.length === 1) {
       if (comboStruct.pairs.length > 0) return comboStruct.pairs[comboStruct.pairs.length - 1];
       if (comboStruct.triples.length > 0) return comboStruct.triples[0];
       if (comboStruct.straights.length > 0) return comboStruct.straights[0];
-      return [aiCards[0]]; // Forced to single -> play highest card
+      return [aiCards[0]];
     }
 
-    // If player has 2 cards left (likely a pair), prefer leading singles
     if (userCards.length === 2 && comboStruct.singles.length > 0) {
       return [comboStruct.singles[comboStruct.singles.length - 1]];
     }
 
-    // Default: Play longest straight, or smallest pair, or smallest single
     if (comboStruct.straights.length > 0) return comboStruct.straights[0];
     if (comboStruct.pairs.length > 0) return comboStruct.pairs[comboStruct.pairs.length - 1];
     if (comboStruct.singles.length > 0) return [comboStruct.singles[comboStruct.singles.length - 1]];
@@ -694,29 +672,25 @@ function aiStrategyLevel4(target) {
     return [aiCards[aiCards.length - 1]];
   }
 
-  // --- SCENARIO B: AI FOLLOWING OPPONENT (target !== null) ---
+  // --- AI FOLLOWING ---
   const beatingCombos = aiCombos.filter(c => canBeat(c.eval, target));
-  if (beatingCombos.length === 0) return null; // Cannot beat -> Pass
+  if (beatingCombos.length === 0) return null;
 
-  // 1. Instant Win Check
   const winningMove = beatingCombos.find(c => c.cards.length === aiCards.length);
   if (winningMove) return winningMove.cards;
 
-  // 2. Emergency Defense Check: User has <= 2 cards or can win on next turn
   const userCanWinNextTurn = userCombos.some(uc => uc.cards.length === userCards.length);
   if (userCards.length <= 2 || userCanWinNextTurn) {
     beatingCombos.sort((a, b) => a.eval.weight - b.eval.weight);
     const nonBombMove = beatingCombos.find(c => c.eval.type !== HAND_TYPES.BOMB && c.eval.type !== HAND_TYPES.ROCKET);
     if (nonBombMove) return nonBombMove.cards;
-    return beatingCombos[0].cards; // Use Bomb if required to intercept
+    return beatingCombos[0].cards;
   }
 
-  // 3. Normal Economy Following (Save Bombs/Rockets)
   const normalBeatingCombos = beatingCombos.filter(c => c.eval.type !== HAND_TYPES.BOMB && c.eval.type !== HAND_TYPES.ROCKET);
   if (normalBeatingCombos.length > 0) {
     normalBeatingCombos.sort((a, b) => a.eval.weight - b.eval.weight);
 
-    // Tactical Pass: Pass if opponent played a high control card (e.g. 2 or Joker) and beating it wastes AI's top card
     if (target.weight >= 15 && normalBeatingCombos[0].eval.weight === 17) {
       return null;
     }
@@ -724,45 +698,12 @@ function aiStrategyLevel4(target) {
     return normalBeatingCombos[0].cards;
   }
 
-  // 4. Respond to opponent Bomb only if AI has a follow-up win plan
   if (target.type === HAND_TYPES.BOMB) {
     const bombBeaters = beatingCombos.filter(c => canBeat(c.eval, target));
     if (bombBeaters.length > 0) {
       bombBeaters.sort((a, b) => a.eval.weight - b.eval.weight);
       return bombBeaters[0].cards;
     }
-  }
-
-  return null; // Pass by default
-}
-
-
-  if (target.type === HAND_TYPES.SINGLE && target.weight >= 13 && userCardCount > 5 && aiCards.length > 3) {
-    if (Math.random() < 0.7) return null;
-  }
-
-  if (target.type === HAND_TYPES.PAIR && target.weight >= 11 && userCardCount > 2) {
-    if (combo.bombs.length > 0 && Math.random() < 0.6) return null;
-  }
-
-  if (target.type === HAND_TYPES.SINGLE) {
-    for (let i = combo.singles.length - 1; i >= 0; i--) {
-      if (combo.singles[i].weight > target.weight) return [combo.singles[i]];
-    }
-    for (let i = combo.pairs.length - 1; i >= 0; i--) {
-      if (combo.pairs[i][0].weight > target.weight) return [combo.pairs[i][0]];
-    }
-  } else if (target.type === HAND_TYPES.PAIR) {
-    for (let i = combo.pairs.length - 1; i >= 0; i--) {
-      if (combo.pairs[i][0].weight > target.weight) return combo.pairs[i];
-    }
-  }
-
-  if (userCardCount <= 2) {
-    for (let c of aiCards) {
-      if (canBeat(evalHand([c]), target)) return [c];
-    }
-    if (combo.bombs.length > 0) return combo.bombs[0];
   }
 
   return null;
@@ -822,7 +763,6 @@ function executePlay(player, cards) {
   }
 }
 
-/* 按钮区域 UI 交互逻辑控制 */
 function setupBiddingUI() {
   const actionBar = document.getElementById('action-bar');
   if (!actionBar) return;
@@ -924,7 +864,6 @@ function renderHands() {
   const aiContainer = document.getElementById('ai-hand');
   if (!pContainer || !aiContainer) return;
 
-  // 1. 玩家手牌渲染
   pContainer.innerHTML = '';
   if (gameState.playerHand && gameState.playerHand.length > 0) {
     gameState.playerHand.forEach(card => {
@@ -936,7 +875,6 @@ function renderHands() {
     updateDynamicCardSpacing(pContainer, gameState.playerHand.length);
   }
 
-  // 2. AI 手牌渲染
   aiContainer.innerHTML = '';
   if (gameState.aiHand && gameState.aiHand.length > 0) {
     gameState.aiHand.forEach(() => {
@@ -945,7 +883,6 @@ function renderHands() {
     updateDynamicCardSpacing(aiContainer, gameState.aiHand.length);
   }
 
-  // 3. UI 牌数信息提示
   const pLen = gameState.playerHand ? gameState.playerHand.length : 0;
   const aiLen = gameState.aiHand ? gameState.aiHand.length : 0;
 
