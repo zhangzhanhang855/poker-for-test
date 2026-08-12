@@ -11,7 +11,7 @@ app.use(cors());
 const JWT_SECRET = 'jrai_doudizhu_secret_2026';
 
 // MongoDB Connection
-mongoose.connect('mongodb://127.0.0.1:27017/doudizhu_db')
+mongoose.connect('mongodb+srv://buenosairesampy563_db_user:congcong2012@cluster0.aaks5du.mongodb.net/?appName=Cluster0')
   .then(() => console.log('Connected to MongoDB successfully.'))
   .catch(err => console.error('MongoDB Connection Error:', err));
 
