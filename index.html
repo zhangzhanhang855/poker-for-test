@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>3-Player Dou Dizhu (Full Stack)</title>
+  <style>
+    :root {
+      --bg-color: #1e3d29;
+      --card-bg: #ffffff;
+      --card-border: #cccccc;
+      --accent-color: #f39c12;
+      --text-color: #ffffff;
+      
+      --card-w: clamp(38px, 9vw, 55px);
+      --card-h: clamp(55px, 13vw, 80px);
+      --font-val: clamp(11px, 2.6vw, 15px);
+      --font-suit: clamp(9px, 2.2vw, 13px);
+    }
+
+    @media (min-width: 768px) {
+      :root {
+        --card-w: clamp(60px, 8vw, 85px);
+        --card-h: clamp(88px, 12vw, 125px);
+        --font-val: clamp(15px, 2.2vw, 20px);
+        --font-suit: clamp(13px, 1.8vw, 17px);
+      }
+    }
+
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      overflow: hidden;
+    }
+
+    /* Screen Management */
+    .screen { display: none; width: 100%; height: 100%; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    /* Auth Screen */
+    #auth-screen {
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle, #2c3e50 0%, #000000 100%);
+    }
+
+    .auth-box {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border: 2px solid var(--accent-color);
+      border-radius: 16px;
+      padding: 24px;
+      width: 90%;
+      max-width: 360px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .auth-title { font-size: 22px; color: #f39c12; margin-bottom: 20px; font-weight: bold; }
+    .input-group { margin-bottom: 14px; text-align: left; }
+    .input-group label { font-size: 13px; color: #ccc; display: block; margin-bottom: 4px; }
+    .input-group input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #111;
+      color: #fff;
+      font-size: 15px;
+      outline: none;
+    }
+
+    /* Home Screen Hub */
+    #home-screen {
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background: radial-gradient(circle, #356845 0%, #1a3322 100%);
+    }
+
+    .home-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0,0,0,0.4);
+      padding: 12px 18px;
+      border-radius: 12px;
+    }
+
+    .user-badge { font-weight: bold; font-size: 16px; color: #fff; }
+    .coin-badge { color: #f1c40f; font-weight: bold; font-size: 16px; }
+
+    .home-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .menu-btn {
+      padding: 14px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 25px;
+      border: none;
+      cursor: pointer;
+      color: white;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      transition: transform 0.1s ease;
+    }
+    .menu-btn:active { transform: scale(0.96); }
+    .btn-start { background: linear-gradient(180deg, #2ecc71, #27ae60); }
+    .btn-market { background: linear-gradient(180deg, #f39c12, #d35400); }
+    .btn-account { background: linear-gradient(180deg, #3498db, #2980b9); }
+
+    /* Market & Account Modals */
+    .market-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .skin-item {
+      border: 2px solid #555;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,0,0,0.3);
+    }
+    .skin-item.equipped { border-color: #2ecc71; }
+    .skin-preview { width: 40px; height: 55px; border-radius: 4px; }
+
+    /* Skins styling */
+    .skin-default { background: linear-gradient(135deg, #2980b9, #2c3e50); border: 1px solid #fff; }
+    .skin-gold { background: linear-gradient(135deg, #f39c12, #f1c40f); border: 1px solid #fff; }
+    .skin-red { background: linear-gradient(135deg, #e74c3c, #c0392b); border: 1px solid #fff; }
+    .skin-purple { background: linear-gradient(135deg, #8e44ad, #2c3e50); border: 1px solid #fff; }
+
+    /* Game Table Styling (UNTOUCHED) */
+    #game-table {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+      position: relative;
+      background: radial-gradient(circle, #356845 0%, #1a3322 100%);
+    }
+
+    .top-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 12px;
+      background: rgba(0, 0, 0, 0.45);
+      border-radius: 10px;
+      gap: 8px;
+      z-index: 10;
+    }
+
+    .ai-config { display: flex; align-items: center; gap: 6px; }
+    .ai-config label { font-weight: bold; color: #f1c40f; font-size: clamp(11px, 2.5vw, 15px); white-space: nowrap; }
+
+    select {
+      background: #2c3e50; color: #fff; border: 1px solid var(--accent-color);
+      padding: 4px 8px; border-radius: 6px; font-size: clamp(11px, 2.5vw, 14px); outline: none; cursor: pointer;
+    }
+
+    .hole-cards-container { display: flex; gap: 4px; }
+
+    .middle-arena {
+      flex: 1; display: grid;
+      grid-template-columns: clamp(65px, 16vw, 100px) 1fr clamp(65px, 16vw, 100px);
+      gap: 6px; align-items: center; position: relative; min-height: 120px; margin: 4px 0; overflow: hidden;
+    }
+
+    .ai-side-box {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0, 0, 0, 0.25); border-radius: 8px; padding: 6px 4px; height: 100%; max-height: 180px; overflow: hidden;
+    }
+
+    .player-info {
+      font-weight: bold; background: rgba(0,0,0,0.65); padding: 4px 8px;
+      border-radius: 10px; font-size: clamp(10px, 2.4vw, 14px); white-space: nowrap; text-align: center;
+    }
+
+    .role-badge { color: #f39c12; font-weight: bold; }
+
+    .ai-card-stack { position: relative; width: calc(var(--card-w) * 0.8); height: calc(var(--card-h) * 0.8); margin-top: 8px; }
+    .ai-card-stack .card { position: absolute; top: 0; left: 0; width: 100%; height: 100%; margin-left: 0 !important; }
+    .ai-card-stack .card:nth-child(2) { transform: translate(3px, 3px); }
+    .ai-card-stack .card:nth-child(3) { transform: translate(6px, 6px); }
+
+    .center-play-area { display: flex; flex-direction: column; justify-content: space-around; align-items: center; height: 100%; position: relative; }
+    .played-cards-box { min-height: calc(var(--card-h) * 0.85); display: flex; justify-content: center; align-items: center; width: 100%; }
+
+    .player-section { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+    .action-bar { display: flex; gap: 8px; min-height: 44px; align-items: center; justify-content: center; width: 100%; z-index: 20; flex-wrap: wrap; }
+
+    .btn {
+      background: linear-gradient(180deg, #f39c12, #d35400); color: #fff; border: none; padding: 6px 14px;
+      font-size: clamp(12px, 2.8vw, 16px); font-weight: bold; border-radius: 20px; cursor: pointer; min-height: 40px; min-width: 75px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.4); transition: transform 0.1s ease, opacity 0.2s ease;
+    }
+    .btn:active:not(:disabled) { transform: scale(0.95); }
+    .btn:disabled { background: #7f8c8d !important; cursor: not-allowed; opacity: 0.4; }
+    .btn-secondary { background: linear-gradient(180deg, #7f8c8d, #34495e); }
+    .btn-verify { background: linear-gradient(180deg, #e74c3c, #c0392b); }
+
+    .card-list { display: flex; justify-content: center; align-items: center; width: 100%; min-height: calc(var(--card-h) + 16px); box-sizing: border-box; padding: 0 4px; }
+
+    .card {
+      width: var(--card-w); height: var(--card-h); background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 6px; display: flex; flex-direction: column; justify-content: space-between; padding: 3px 4px;
+      box-shadow: 1px 2px 4px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.15s ease; position: relative; flex-shrink: 0;
+    }
+    .card.selected { transform: translateY(-16px) !important; border: 2px solid #e74c3c; }
+
+    .card-val { font-size: var(--font-val); font-weight: bold; line-height: 1; }
+    .card-suit { font-size: var(--font-suit); align-self: flex-end; }
+    .red { color: #e74c3c; }
+    .black { color: #2c3e50; }
+
+    .hole-cards-container .card { width: calc(var(--card-w) * 0.75); height: calc(var(--card-h) * 0.75); margin-left: 0 !important; }
+
+    .toast-msg {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9); color: #f1c40f; padding: 8px 18px; border-radius: 18px;
+      font-size: clamp(12px, 3.2vw, 16px); font-weight: bold; pointer-events: none; opacity: 0;
+      transition: opacity 0.25s ease; z-index: 100; border: 1px solid #f39c12; box-shadow: 0 0 12px rgba(243, 156, 18, 0.5); white-space: nowrap;
+    }
+    .toast-msg.show { opacity: 1; }
+
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8);
+      display: flex; justify-content: center; align-items: center; z-index: 200; visibility: hidden; opacity: 0; transition: all 0.25s ease;
+    }
+    .modal-overlay.active { visibility: visible; opacity: 1; }
+    .modal-box {
+      background: #2c3e50; border: 2px solid #f39c12; border-radius: 14px; padding: 20px 24px;
+      text-align: center; max-width: 340px; width: 88%; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .modal-title { font-size: clamp(17px, 4vw, 22px); color: #f39c12; margin-bottom: 10px; }
+    .modal-body { font-size: clamp(13px, 3.2vw, 16px); margin-bottom: 18px; color: #ecf0f1; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+  <!-- 1. AUTH SCREEN -->
+  <div id="auth-screen" class="screen active">
+    <div class="auth-box">
+      <div class="auth-title" id="auth-tab-title">用户登录</div>
+      <div class="input-group">
+        <label>账号</label>
+        <input type="text" id="auth-username" placeholder="请输入账号">
+      </div>
+      <div class="input-group">
+        <label>密码</label>
+        <input type="password" id="auth-password" placeholder="请输入密码">
+      </div>
+      <button class="btn" style="width: 100%; margin-top: 10px;" id="auth-main-btn" onclick="submitAuth()">登录</button>
+      <div style="margin-top: 15px; font-size: 13px; color: #aaa; cursor: pointer;" onclick="toggleAuthMode()" id="auth-toggle-text">
+        没有账号？点击注册
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. HOME SCREEN -->
+  <div id="home-screen" class="screen">
+    <div class="home-header">
+      <div class="user-badge" id="home-username">玩家</div>
+      <div class="coin-badge">💰 <span id="home-coins">1000</span> 金币</div>
+    </div>
+
+    <div class="home-menu">
+      <button class="menu-btn btn-start" onclick="openStartGameModal()">🎮 开始游戏</button>
+      <button class="menu-btn btn-market" onclick="openMarketModal()">🛒 扑克牌皮肤市场</button>
+      <button class="menu-btn btn-account" onclick="openAccountModal()">⚙️ 账户管理</button>
+    </div>
+
+    <div style="font-size: 12px; color: #888;">JR AI 斗地主 v2.0</div>
+  </div>
+
+  <!-- 3. GAME SCREEN -->
+  <div id="game-screen" class="screen">
+    <div id="game-table">
+      <div class="top-section">
+        <div class="ai-config">
+          <button class="btn btn-secondary" style="min-width:60px; padding:4px 8px; font-size:12px;" onclick="returnToHome()">返回</button>
+          <label for="ai-level">AI段位：</label>
+          <select id="ai-level" onchange="changeAiLevel(this.value)">
+            <option value="1">青铜 (随机)</option>
+            <option value="2">白银 (基础)</option>
+            <option value="3">黄金 (贪婪)</option>
+            <option value="4" selected>王者 (算牌+3%概率夹牌)</option>
+          </select>
+        </div>
+        <div id="hole-cards" class="hole-cards-container">
+          <div class="card back"></div>
+          <div class="card back"></div>
+          <div class="card back"></div>
+        </div>
+      </div>
+
+      <div class="middle-arena">
+        <div class="ai-side-box">
+          <div id="ai-left-info" class="player-info">AI 左<br>(手牌: 17)</div>
+          <div id="ai-left-hand" class="ai-card-stack"></div>
+        </div>
+
+        <div class="center-play-area">
+          <div id="ai-left-play-area" class="played-cards-box"></div>
+          <div id="ai-right-play-area" class="played-cards-box"></div>
+          <div id="player-play-area" class="played-cards-box"></div>
+          <div id="toast" class="toast-msg">提示信息</div>
+        </div>
+
+        <div class="ai-side-box">
+          <div id="ai-right-info" class="player-info">AI 右<br>(手牌: 17)</div>
+          <div id="ai-right-hand" class="ai-card-stack"></div>
+        </div>
+      </div>
+
+      <div class="player-section">
+        <div id="action-bar" class="action-bar"></div>
+        <div id="player-info" class="player-info">玩家 (农民)</div>
+        <div id="player-hand" class="card-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div id="custom-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div id="modal-title" class="modal-title">提示</div>
+      <div id="modal-body" class="modal-body">信息</div>
+      <button class="btn" id="modal-btn" onclick="hideModal()">确定</button>
+    </div>
+  </div>
+
+  <!-- Market Modal -->
+  <div id="market-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title">扑克牌皮肤市场</div>
+      <div class="market-grid" id="market-items"></div>
+      <button class="btn btn-secondary" style="margin-top:15px;" onclick="closeMarketModal()">关闭</button>
+    </div>
+  </div>
+
+  <!-- Account Modal -->
+  <div id="account-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title">账户管理</div>
+      <div class="modal-body">
+        <button class="btn btn-secondary" style="width:100%; margin-bottom:10px;" onclick="logout()">退出登录</button>
+        <button class="btn btn-verify" style="width:100%;" onclick="deleteAccount()">注销账号</button>
+      </div>
+      <button class="btn btn-secondary" onclick="closeAccountModal()">返回</button>
+    </div>
+  </div>
+
+<script>
+const API_BASE = 'http://localhost:3000/api';
+let authToken = localStorage.getItem('token') || '';
+let currentUser = null;
+let isAuthRegister = false;
+
+/* SKINS DEFINITION */
+const SKINS = [
+  { id: 'default', name: '经典蓝色', price: 0, class: 'skin-default' },
+  { id: 'gold', name: '尊贵黄金', price: 500, class: 'skin-gold' },
+  { id: 'red', name: '热血中国红', price: 800, class: 'skin-red' },
+  { id: 'purple', name: '幻影紫', price: 1200, class: 'skin-purple' }
+];
+
+/* AUTH & API LOGIC */
+async function apiCall(endpoint, method = 'GET', data = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  
+  try {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : null
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, msg: '网络连接失败，请检查后端服务器' };
+  }
+}
+
+function showScreen(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+}
+
+function toggleAuthMode() {
+  isAuthRegister = !isAuthRegister;
+  document.getElementById('auth-tab-title').innerText = isAuthRegister ? '用户注册' : '用户登录';
+  document.getElementById('auth-main-btn').innerText = isAuthRegister ? '注册' : '登录';
+  document.getElementById('auth-toggle-text').innerText = isAuthRegister ? '已有账号？点击登录' : '没有账号？点击注册';
+}
+
+async function submitAuth() {
+  const username = document.getElementById('auth-username').value.trim();
+  const password = document.getElementById('auth-password').value.trim();
+  if (!username || !password) return alert('请填写完整账号密码');
+
+  const endpoint = isAuthRegister ? '/register' : '/login';
+  const res = await apiCall(endpoint, 'POST', { username, password });
+
+  if (res.success) {
+    if (isAuthRegister) {
+      alert(res.msg);
+      toggleAuthMode();
+    } else {
+      authToken = res.token;
+      localStorage.setItem('token', authToken);
+      currentUser = res.user;
+      loadHomeScreen();
+    }
+  } else {
+    alert(res.msg);
+  }
+}
+
+async function checkLogin() {
+  if (!authToken) return showScreen('auth-screen');
+  const res = await apiCall('/user/profile');
+  if (res.success) {
+    currentUser = res.user;
+    loadHomeScreen();
+  } else {
+    logout();
+  }
+}
+
+function loadHomeScreen() {
+  document.getElementById('home-username').innerText = currentUser.username;
+  document.getElementById('home-coins').innerText = currentUser.coins;
+  showScreen('home-screen');
+}
+
+function logout() {
+  localStorage.removeItem('token');
+  authToken = '';
+  currentUser = null;
+  closeAccountModal();
+  showScreen('auth-screen');
+}
+
+async function deleteAccount() {
+  if (confirm('确定要注销账号吗？此操作不可逆！')) {
+    const res = await apiCall('/user/delete', 'POST');
+    if (res.success) {
+      alert('账号注销成功');
+      logout();
+    }
+  }
+}
+
+/* MARKET SYSTEM */
+function openMarketModal() {
+  const container = document.getElementById('market-items');
+  container.innerHTML = '';
+  SKINS.forEach(s => {
+    const isUnlocked = currentUser.unlockedSkins.includes(s.id);
+    const isEquipped = currentUser.equippedSkin === s.id;
+    
+    const div = document.createElement('div');
+    div.className = `skin-item ${isEquipped ? 'equipped' : ''}`;
+    div.innerHTML = `
+      <div class="skin-preview ${s.class}"></div>
+      <div style="font-size:12px; font-weight:bold;">${s.name}</div>
+      <div style="font-size:11px; color:#f1c40f;">${isUnlocked ? '已拥有' : s.price + ' 金币'}</div>
+      <button class="btn" style="min-width:60px; padding:3px 8px; font-size:11px;" 
+        onclick="${isUnlocked ? `equipSkin('${s.id}')` : `buySkin('${s.id}', ${s.price})`}">
+        ${isEquipped ? '已佩戴' : (isUnlocked ? '佩戴' : '购买')}
+      </button>
+    `;
+    container.appendChild(div);
+  });
+  document.getElementById('market-modal').classList.add('active');
+}
+
+function closeMarketModal() { document.getElementById('market-modal').classList.remove('active'); }
+
+async function buySkin(skinId, price) {
+  const res = await apiCall('/market/buy', 'POST', { skinId, price });
+  if (res.success) {
+    currentUser.coins = res.coins;
+    currentUser.unlockedSkins = res.unlockedSkins;
+    currentUser.equippedSkin = res.equippedSkin;
+    document.getElementById('home-coins').innerText = currentUser.coins;
+    openMarketModal();
+  } else {
+    alert(res.msg);
+  }
+}
+
+async function equipSkin(skinId) {
+  const res = await apiCall('/market/equip', 'POST', { skinId });
+  if (res.success) {
+    currentUser.equippedSkin = res.equippedSkin;
+    openMarketModal();
+  }
+}
+
+function openAccountModal() { document.getElementById('account-modal').classList.add('active'); }
+function closeAccountModal() { document.getElementById('account-modal').classList.remove('active'); }
+
+function openStartGameModal() {
+  showScreen('game-screen');
+  initGame();
+}
+
+function returnToHome() {
+  loadHomeScreen();
+}
+
+/* ========================================================================= */
+/*                    INTACT DOU DIZHU GAME ENGINE                          */
+/* ========================================================================= */
+const SUITS = ['♠', '♥', '♣', '♦'];
+const VAL_MAP = {
+  3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10',
+  11: 'J', 12: 'Q', 13: 'K', 14: 'A', 15: '2', 16: '小王', 17: '大王'
+};
+
+const HAND_TYPES = {
+  INVALID: 0, SINGLE: 1, PAIR: 2, TRIPLE: 3, TRIPLE_SINGLE: 4, TRIPLE_PAIR: 5,
+  STRAIGHT: 6, DOUBLE_STRAIGHT: 7, AIRPLANE: 8, QUAD_TWO: 10, BOMB: 100, ROCKET: 1000
+};
+
+const SEATS = ['PLAYER', 'AI_RIGHT', 'AI_LEFT'];
+
+let gameState = {
+  deck: [],
+  hands: { PLAYER: [], AI_RIGHT: [], AI_LEFT: [] },
+  holeCards: [],
+  currentTurnIdx: 0,
+  landlord: null,
+  lastPlay: null,
+  selectedCards: [],
+  phase: 'BIDDING',
+  aiLevel: 4,
+  playedHistory: [],
+  bids: {}
+};
+
+function createDeck() {
+  const deck = [];
+  let id = 0;
+  for (let w = 3; w <= 15; w++) {
+    for (let s = 0; s < 4; s++) {
+      deck.push({ id: id++, weight: w, suit: SUITS[s], name: VAL_MAP[w] });
+    }
+  }
+  deck.push({ id: id++, weight: 16, suit: '', name: '小王' });
+  deck.push({ id: id++, weight: 17, suit: '', name: '大王' });
+  return deck;
+}
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function initGame() {
+  hideModal();
+  const deck = createDeck();
+  shuffle(deck);
+
+  gameState.holeCards = deck.slice(0, 3);
+  gameState.hands.PLAYER = deck.slice(3, 20).sort((a,b) => b.weight - a.weight);
+  gameState.hands.AI_RIGHT = deck.slice(20, 37).sort((a,b) => b.weight - a.weight);
+  gameState.hands.AI_LEFT = deck.slice(37, 54).sort((a,b) => b.weight - a.weight);
+
+  gameState.lastPlay = null;
+  gameState.selectedCards = [];
+  gameState.phase = 'BIDDING';
+  gameState.landlord = null;
+  gameState.playedHistory = [];
+  gameState.bids = {};
+  gameState.currentTurnIdx = 0;
+
+  clearPlayAreas();
+  renderHoleCards(true);
+  renderHands();
+  setupBiddingUI();
+  showToast("三人对局开始，轮流选择叫地主");
+}
+
+function clearPlayAreas() {
+  document.getElementById('player-play-area').innerHTML = '';
+  document.getElementById('ai-right-play-area').innerHTML = '';
+  document.getElementById('ai-left-play-area').innerHTML = '';
+}
+
+function changeAiLevel(val) {
+  gameState.aiLevel = parseInt(val);
+  showToast(`AI 段位切换为：${document.getElementById('ai-level').options[gameState.aiLevel-1].text}`);
+}
+
+function updateDynamicCardSpacing(container, cardCount) {
+  if (!container || cardCount <= 0) return;
+  const cards = container.querySelectorAll('.card');
+  if (cards.length === 0) return;
+
+  const containerWidth = container.clientWidth || (window.innerWidth - 20);
+  const cardWidth = cards[0].offsetWidth || 40;
+
+  if (cardCount === 1) { cards[0].style.marginLeft = '0px'; return; }
+
+  let calculatedOverlap = (containerWidth - cardWidth) / (cardCount - 1) - cardWidth;
+  if (calculatedOverlap > -4) calculatedOverlap = -4;
+  if (calculatedOverlap < -cardWidth * 0.78) calculatedOverlap = -cardWidth * 0.78;
+
+  cards.forEach((card, idx) => {
+    card.style.marginLeft = idx === 0 ? '0px' : `${calculatedOverlap}px`;
+  });
+}
+
+function evalHand(cards) {
+  if (!cards || cards.length === 0) return { type: HAND_TYPES.INVALID };
+  const sorted = [...cards].sort((a,b) => a.weight - b.weight);
+  const len = sorted.length;
+  const weights = sorted.map(c => c.weight);
+
+  const counts = {};
+  weights.forEach(w => counts[w] = (counts[w] || 0) + 1);
+  const unique = Object.keys(counts).map(Number).sort((a,b) => a - b);
+
+  if (len === 2 && weights[0] === 16 && weights[1] === 17) return { type: HAND_TYPES.ROCKET, weight: 17, length: 2 };
+  if (len === 4 && unique.length === 1 && counts[unique[0]] === 4) return { type: HAND_TYPES.BOMB, weight: unique[0], length: 4 };
+  if (len === 1) return { type: HAND_TYPES.SINGLE, weight: weights[0], length: 1 };
+  if (len === 2 && weights[0] === weights[1]) return { type: HAND_TYPES.PAIR, weight: weights[0], length: 2 };
+  if (len === 3 && unique.length === 1) return { type: HAND_TYPES.TRIPLE, weight: weights[0], length: 3 };
+
+  if (len === 4 && unique.length === 2) {
+    const main = unique.find(w => counts[w] === 3);
+    if (main) return { type: HAND_TYPES.TRIPLE_SINGLE, weight: main, length: 4 };
+  }
+  if (len === 5 && unique.length === 2) {
+    const main = unique.find(w => counts[w] === 3);
+    const sub = unique.find(w => counts[w] === 2);
+    if (main && sub) return { type: HAND_TYPES.TRIPLE_PAIR, weight: main, length: 5 };
+  }
+  if (len >= 5 && unique.length === len && weights[len-1] <= 14) {
+    let ok = true;
+    for (let i = 0; i < len - 1; i++) { if (weights[i+1] !== weights[i] + 1) ok = false; }
+    if (ok) return { type: HAND_TYPES.STRAIGHT, weight: weights[len-1], length: len };
+  }
+  if (len >= 6 && len % 2 === 0 && unique.length === len / 2 && weights[len-1] <= 14) {
+    let ok = unique.every(w => counts[w] === 2);
+    for (let i = 0; i < unique.length - 1; i++) { if (unique[i+1] !== unique[i] + 1) ok = false; }
+    if (ok) return { type: HAND_TYPES.DOUBLE_STRAIGHT, weight: unique[unique.length - 1], length: len };
+  }
+  return { type: HAND_TYPES.INVALID };
+}
+
+function canBeat(newHand, targetHand) {
+  if (!targetHand) return newHand.type !== HAND_TYPES.INVALID;
+  if (newHand.type === HAND_TYPES.INVALID) return false;
+  if (newHand.type === HAND_TYPES.ROCKET) return true;
+  if (newHand.type === HAND_TYPES.BOMB && targetHand.type !== HAND_TYPES.BOMB && targetHand.type !== HAND_TYPES.ROCKET) return true;
+  if (newHand.type === targetHand.type && newHand.length === targetHand.length) {
+    return newHand.weight > targetHand.weight;
+  }
+  return false;
+}
+
+function setupBiddingUI() {
+  const currentSeat = SEATS[gameState.currentTurnIdx];
+  const actionBar = document.getElementById('action-bar');
+
+  if (currentSeat === 'PLAYER') {
+    actionBar.innerHTML = `
+      <button class="btn" onclick="handleBid('PLAYER', true)">叫地主</button>
+      <button class="btn btn-secondary" onclick="handleBid('PLAYER', false)">不叫</button>
+    `;
+  } else {
+    actionBar.innerHTML = `<span style="color:#f1c40f; font-weight:bold;">等待 ${currentSeat === 'AI_RIGHT' ? 'AI 右' : 'AI 左'} 叫牌...</span>`;
+    setTimeout(() => {
+      const wantLandlord = Math.random() > 0.4;
+      handleBid(currentSeat, wantLandlord);
+    }, 800);
+  }
+}
+
+function handleBid(seat, wantBid) {
+  gameState.bids[seat] = wantBid;
+  showToast(`${seat === 'PLAYER' ? '您' : (seat === 'AI_RIGHT' ? 'AI 右' : 'AI 左')} ${wantBid ? '叫地主' : '不叫'}`);
+
+  if (Object.keys(gameState.bids).length < 3) {
+    gameState.currentTurnIdx = (gameState.currentTurnIdx + 1) % 3;
+    setupBiddingUI();
+  } else {
+    const bidders = Object.keys(gameState.bids).filter(s => gameState.bids[s]);
+    if (bidders.length === 0) {
+      gameState.landlord = SEATS[Math.floor(Math.random() * 3)];
+    } else {
+      gameState.landlord = bidders[bidders.length - 1];
+    }
+
+    gameState.hands[gameState.landlord].push(...gameState.holeCards);
+    gameState.hands[gameState.landlord].sort((a,b) => b.weight - a.weight);
+
+    gameState.phase = 'PLAYING';
+    gameState.currentTurnIdx = SEATS.indexOf(gameState.landlord);
+    
+    showToast(`${getSeatName(gameState.landlord)} 成为地主！`);
+    renderHoleCards(false);
+    renderHands();
+    updateRoleBadges();
+    setupPlayingUI();
+
+    if (SEATS[gameState.currentTurnIdx] !== 'PLAYER') {
+      setTimeout(aiTurn, 900);
+    }
+  }
+}
+
+function getSeatName(seat) {
+  if (seat === 'PLAYER') return '玩家';
+  if (seat === 'AI_RIGHT') return 'AI 右';
+  return 'AI 左';
+}
+
+function getPlayAreaId(seat) {
+  if (seat === 'PLAYER') return 'player-play-area';
+  if (seat === 'AI_RIGHT') return 'ai-right-play-area';
+  return 'ai-left-play-area';
+}
+
+function aiTurn() {
+  const seat = SEATS[gameState.currentTurnIdx];
+  if (gameState.phase !== 'PLAYING' || seat === 'PLAYER') return;
+
+  const targetPlay = (gameState.lastPlay && gameState.lastPlay.player !== seat) ? gameState.lastPlay.handEval : null;
+  const targetSeat = gameState.lastPlay ? gameState.lastPlay.player : null;
+
+  let playResult = aiStrategyLevel4(seat, targetPlay, targetSeat);
+
+  if (playResult && playResult.cards && playResult.cards.length > 0) {
+    executePlay(seat, playResult.cards, playResult.didCheat, playResult.cheatCard);
+  } else {
+    document.getElementById(getPlayAreaId(seat)).innerHTML = '<span style="color:#bdc3c7; font-weight:bold;">不要 (Pass)</span>';
+    showToast(`${getSeatName(seat)} 选择不出`);
+    advanceTurn();
+  }
+}
+
+function aiStrategyLevel4(seat, target, targetSeat) {
+  const hand = [...gameState.hands[seat]].sort((a, b) => b.weight - a.weight);
+  const isPartnerPlay = targetSeat && (seat !== gameState.landlord && targetSeat !== gameState.landlord);
+
+  if (isPartnerPlay && target && target.weight >= 10) return null;
+
+  let cardsToPlay = null;
+  if (!target) {
+    cardsToPlay = [hand[hand.length - 1]];
+  } else {
+    for (let c of hand) {
+      if (canBeat(evalHand([c]), target)) { cardsToPlay = [c]; break; }
+    }
+    if (!cardsToPlay) {
+      for (let i = hand.length - 1; i >= 1; i--) {
+        let pair = [hand[i], hand[i-1]];
+        if (canBeat(evalHand(pair), target)) { cardsToPlay = pair; break; }
+      }
+    }
+  }
+
+  if (!cardsToPlay) return null;
+
+  let didCheat = false;
+  let cheatCard = null;
+
+  if (gameState.aiLevel === 4 && hand.length > 3) {
+    const uselessCards = hand.filter(c => c.weight <= 5 && !cardsToPlay.some(sc => sc.id === c.id));
+    if (uselessCards.length > 0 && Math.random() < 0.03) {
+      didCheat = true;
+      cheatCard = uselessCards[uselessCards.length - 1];
+    }
+  }
+
+  return { cards: cardsToPlay, didCheat, cheatCard };
+}
+
+function executePlay(seat, cards, didCheat = false, cheatCard = null) {
+  let cardsToRemove = [...cards];
+  if (didCheat && cheatCard) cardsToRemove.push(cheatCard);
+
+  gameState.hands[seat] = gameState.hands[seat].filter(c => !cardsToRemove.some(sc => sc.id === c.id));
+  
+  const evalResult = evalHand(cards);
+  renderPlayedCards(getPlayAreaId(seat), cards);
+
+  gameState.playedHistory.push(...cardsToRemove);
+  gameState.lastPlay = { player: seat, cards, handEval: evalResult, didCheat, cheatedSeat: seat };
+
+  renderHands();
+
+  if (gameState.hands[seat].length === 0) {
+    const winnerRole = (seat === gameState.landlord) ? '地主' : '农民';
+    const isWin = (seat === 'PLAYER') || (seat !== gameState.landlord && gameState.landlord !== 'PLAYER');
+    
+    // Reward Settlement
+    const rewardCoins = isWin ? 200 : -100;
+    apiCall('/game/reward', 'POST', { amount: rewardCoins }).then(res => {
+      if (res.success) currentUser.coins = res.coins;
+    });
+
+    showModal("对局结束", `${getSeatName(seat)}（${winnerRole}）率先出完牌！${isWin ? '您获得了 200 金币！' : '您扣除了 100 金币。'}`);
+    return;
+  }
+
+  advanceTurn();
+}
+
+function advanceTurn() {
+  gameState.currentTurnIdx = (gameState.currentTurnIdx + 1) % 3;
+  setupPlayingUI();
+
+  if (SEATS[gameState.currentTurnIdx] !== 'PLAYER') {
+    setTimeout(aiTurn, 900);
+  }
+}
+
+function setupPlayingUI() {
+  const actionBar = document.getElementById('action-bar');
+  if (!actionBar) return;
+  
+  const isPlayerTurn = SEATS[gameState.currentTurnIdx] === 'PLAYER';
+  const canPass = gameState.lastPlay && gameState.lastPlay.player !== 'PLAYER';
+  const canVerify = gameState.lastPlay && gameState.lastPlay.player !== 'PLAYER';
+
+  actionBar.innerHTML = `
+    <button class="btn" onclick="handlePlayCard()" ${!isPlayerTurn ? 'disabled' : ''}>出牌</button>
+    <button class="btn btn-secondary" onclick="handlePass()" ${(!isPlayerTurn || !canPass) ? 'disabled' : ''}>不出</button>
+    <button class="btn btn-verify" onclick="handleVerifyCheat()" ${!canVerify ? 'disabled' : ''}>我要验牌</button>
+  `;
+}
+
+function handlePlayCard() {
+  if (gameState.selectedCards.length === 0) { showToast("请先选择要出的牌！"); return; }
+
+  const evalResult = evalHand(gameState.selectedCards);
+  if (evalResult.type === HAND_TYPES.INVALID) { showToast("不符合任何规则牌型！"); return; }
+
+  const target = (gameState.lastPlay && gameState.lastPlay.player !== 'PLAYER') ? gameState.lastPlay.handEval : null;
+  if (!canBeat(evalResult, target)) { showToast("您出的牌管不上场上的牌！"); return; }
+
+  document.getElementById('player-play-area').innerHTML = '';
+  executePlay('PLAYER', gameState.selectedCards);
+  gameState.selectedCards = [];
+}
+
+function handlePass() {
+  document.getElementById('player-play-area').innerHTML = '<span style="color:#bdc3c7; font-weight:bold;">不要 (Pass)</span>';
+  gameState.selectedCards = [];
+  renderHands();
+  showToast("您选择过牌");
+  advanceTurn();
+}
+
+function handleVerifyCheat() {
+  if (!gameState.lastPlay || gameState.lastPlay.player === 'PLAYER') { showToast("只能抓 AI 对手的作弊行为！"); return; }
+
+  const targetSeat = gameState.lastPlay.player;
+  const targetSeatName = getSeatName(targetSeat);
+
+  if (gameState.lastPlay.didCheat) {
+    apiCall('/game/reward', 'POST', { amount: 500 }).then(res => { if(res.success) currentUser.coins = res.coins; });
+    showModal("验牌成功！🚨", `抓包成功！${targetSeatName} 在刚才的出牌中偷夹了底牌作弊！被处以取消资格，玩家阵营直接获胜并爆赚 500 金币！`);
+  } else {
+    apiCall('/game/reward', 'POST', { amount: -200 }).then(res => { if(res.success) currentUser.coins = res.coins; });
+    showModal("验牌失败！❌", `验牌结果：${targetSeatName} 刚才出牌完全合规！您因误报扣除 200 金币，直接输掉本局。`);
+  }
+}
+
+function renderCardDOM(card, isBack = false) {
+  const el = document.createElement('div');
+  const skinClass = SKINS.find(s => s.id === (currentUser ? currentUser.equippedSkin : 'default'))?.class || 'skin-default';
+  
+  el.className = `card ${isBack ? `back ${skinClass}` : ''}`;
+  if (!isBack && card) {
+    const isRed = card.suit === '♥' || card.suit === '♦' || card.weight === 17;
+    const colorClass = isRed ? 'red' : 'black';
+    el.innerHTML = `
+      <div class="card-val ${colorClass}">${card.name}</div>
+      <div class="card-suit ${colorClass}">${card.suit}</div>
+    `;
+  }
+  return el;
+}
+
+function renderHands() {
+  const pContainer = document.getElementById('player-hand');
+  const aiRightContainer = document.getElementById('ai-right-hand');
+  const aiLeftContainer = document.getElementById('ai-left-hand');
+
+  if (!pContainer || !aiRightContainer || !aiLeftContainer) return;
+
+  pContainer.innerHTML = '';
+  gameState.hands.PLAYER.forEach(card => {
+    const cardEl = renderCardDOM(card);
+    if (gameState.selectedCards.some(sc => sc.id === card.id)) cardEl.classList.add('selected');
+    cardEl.onclick = () => toggleCardSelect(card);
+    pContainer.appendChild(cardEl);
+  });
+  updateDynamicCardSpacing(pContainer, gameState.hands.PLAYER.length);
+
+  aiLeftContainer.innerHTML = '';
+  const leftCount = Math.min(3, gameState.hands.AI_LEFT.length);
+  for (let i = 0; i < leftCount; i++) aiLeftContainer.appendChild(renderCardDOM(null, true));
+
+  aiRightContainer.innerHTML = '';
+  const rightCount = Math.min(3, gameState.hands.AI_RIGHT.length);
+  for (let i = 0; i < rightCount; i++) aiRightContainer.appendChild(renderCardDOM(null, true));
+
+  document.getElementById('player-info').innerHTML = `玩家 (${gameState.landlord === 'PLAYER' ? '<span class="role-badge">地主</span>' : '农民'}) - 剩余: ${gameState.hands.PLAYER.length}张`;
+  document.getElementById('ai-right-info').innerHTML = `AI 右 (${gameState.landlord === 'AI_RIGHT' ? '<span class="role-badge">地主</span>' : '农民'})<br>剩余: ${gameState.hands.AI_RIGHT.length}张`;
+  document.getElementById('ai-left-info').innerHTML = `AI 左 (${gameState.landlord === 'AI_LEFT' ? '<span class="role-badge">地主</span>' : '农民'})<br>剩余: ${gameState.hands.AI_LEFT.length}张`;
+}
+
+function renderHoleCards(hidden = true) {
+  const container = document.getElementById('hole-cards');
+  if (!container) return;
+  container.innerHTML = '';
+  gameState.holeCards.forEach(card => container.appendChild(renderCardDOM(card, hidden)));
+}
+
+function renderPlayedCards(containerId, cards) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  const cardList = document.createElement('div');
+  cardList.className = 'card-list';
+  cards.forEach(card => cardList.appendChild(renderCardDOM(card)));
+  container.appendChild(cardList);
+  updateDynamicCardSpacing(cardList, cards.length);
+}
+
+function toggleCardSelect(card) {
+  if (SEATS[gameState.currentTurnIdx] !== 'PLAYER') return;
+  const idx = gameState.selectedCards.findIndex(sc => sc.id === card.id);
+  if (idx > -1) gameState.selectedCards.splice(idx, 1);
+  else gameState.selectedCards.push(card);
+  renderHands();
+}
+
+function updateRoleBadges() {
+  document.getElementById('player-info').style.color = gameState.landlord === 'PLAYER' ? '#f39c12' : '#ffffff';
+  document.getElementById('ai-right-info').style.color = gameState.landlord === 'AI_RIGHT' ? '#f39c12' : '#ffffff';
+  document.getElementById('ai-left-info').style.color = gameState.landlord === 'AI_LEFT' ? '#f39c12' : '#ffffff';
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.innerText = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1600);
+}
+
+function showModal(title, body) {
+  document.getElementById('modal-title').innerText = title;
+  document.getElementById('modal-body').innerText = body;
+  document.getElementById('modal-btn').onclick = hideModal;
+  document.getElementById('custom-modal').classList.add('active');
+}
+
+function hideModal() {
+  document.getElementById('custom-modal').classList.remove('active');
+}
+
+window.addEventListener('resize', () => {
+  if (gameState.hands.PLAYER && gameState.hands.PLAYER.length > 0) renderHands();
+});
+
+window.onload = checkLogin;
+</script>
+</body>
+</html>
