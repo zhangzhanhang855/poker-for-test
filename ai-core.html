@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>3-Player Dou Dizhu (Responsive Mobile & iPad)</title>
+  <title>3-Player Dou Dizhu (Responsive Fixed Layout)</title>
   <style>
     :root {
       --bg-color: #1e3d29;
@@ -12,14 +12,12 @@
       --accent-color: #f39c12;
       --text-color: #ffffff;
       
-      /* Mobile default sizing */
-      --card-w: clamp(36px, 8.5vw, 50px);
-      --card-h: clamp(52px, 12.5vw, 75px);
+      --card-w: clamp(38px, 9vw, 55px);
+      --card-h: clamp(55px, 13vw, 80px);
       --font-val: clamp(11px, 2.6vw, 15px);
       --font-suit: clamp(9px, 2.2vw, 13px);
     }
 
-    /* iPad / Tablet (768px and up) */
     @media (min-width: 768px) {
       :root {
         --card-w: clamp(60px, 8vw, 85px);
@@ -105,12 +103,13 @@
     .middle-arena {
       flex: 1;
       display: grid;
-      grid-template-columns: clamp(70px, 18vw, 120px) 1fr clamp(70px, 18vw, 120px);
+      grid-template-columns: clamp(65px, 16vw, 100px) 1fr clamp(65px, 16vw, 100px);
       gap: 6px;
       align-items: center;
       position: relative;
       min-height: 120px;
       margin: 4px 0;
+      overflow: hidden;
     }
 
     .ai-side-box {
@@ -122,7 +121,8 @@
       border-radius: 8px;
       padding: 6px 4px;
       height: 100%;
-      max-height: 220px;
+      max-height: 180px;
+      overflow: hidden;
     }
 
     .player-info {
@@ -139,6 +139,26 @@
       color: #f39c12;
       font-weight: bold;
     }
+
+    /* AI Hand Stack Display (Fix for Card Overflow) */
+    .ai-card-stack {
+      position: relative;
+      width: calc(var(--card-w) * 0.8);
+      height: calc(var(--card-h) * 0.8);
+      margin-top: 8px;
+    }
+
+    .ai-card-stack .card {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      margin-left: 0 !important;
+    }
+
+    .ai-card-stack .card:nth-child(2) { transform: translate(3px, 3px); }
+    .ai-card-stack .card:nth-child(3) { transform: translate(6px, 6px); }
 
     .center-play-area {
       display: flex;
@@ -316,7 +336,7 @@
           <option value="1">青铜 (随机)</option>
           <option value="2">白银 (基础)</option>
           <option value="3">黄金 (贪婪)</option>
-          <option value="4" selected>王者 (强力算牌+夹牌作弊)</option>
+          <option value="4" selected>王者 (算牌+3%概率夹牌)</option>
         </select>
       </div>
       <div id="hole-cards" class="hole-cards-container">
@@ -331,7 +351,7 @@
       <!-- AI Left -->
       <div class="ai-side-box">
         <div id="ai-left-info" class="player-info">AI 左<br>(手牌: 17)</div>
-        <div id="ai-left-hand" class="card-list" style="flex-direction: column; min-height: 60px; margin-top: 4px;"></div>
+        <div id="ai-left-hand" class="ai-card-stack"></div>
       </div>
 
       <!-- Center Played Cards Area -->
@@ -345,7 +365,7 @@
       <!-- AI Right -->
       <div class="ai-side-box">
         <div id="ai-right-info" class="player-info">AI 右<br>(手牌: 17)</div>
-        <div id="ai-right-hand" class="card-list" style="flex-direction: column; min-height: 60px; margin-top: 4px;"></div>
+        <div id="ai-right-hand" class="ai-card-stack"></div>
       </div>
     </div>
 
@@ -451,7 +471,6 @@ function changeAiLevel(val) {
   showToast(`AI 段位切换为：${document.getElementById('ai-level').options[gameState.aiLevel-1].text}`);
 }
 
-/* Dynamic Card Spacing Calculation for Responsive Touch Displays */
 function updateDynamicCardSpacing(container, cardCount) {
   if (!container || cardCount <= 0) return;
   const cards = container.querySelectorAll('.card');
@@ -466,7 +485,6 @@ function updateDynamicCardSpacing(container, cardCount) {
   }
 
   let calculatedOverlap = (containerWidth - cardWidth) / (cardCount - 1) - cardWidth;
-  
   if (calculatedOverlap > -4) calculatedOverlap = -4;
   if (calculatedOverlap < -cardWidth * 0.78) calculatedOverlap = -cardWidth * 0.78;
 
@@ -605,6 +623,7 @@ function aiTurn() {
   }
 }
 
+/* 王者 AI 算法（夹牌概率已下调至 3%） */
 function aiStrategyLevel4(seat, target, targetSeat) {
   const hand = [...gameState.hands[seat]].sort((a, b) => b.weight - a.weight);
   const isPartnerPlay = targetSeat && (seat !== gameState.landlord && targetSeat !== gameState.landlord);
@@ -640,9 +659,10 @@ function aiStrategyLevel4(seat, target, targetSeat) {
   let didCheat = false;
   let cheatCard = null;
 
+  // 设定概率为 3% (0.03)
   if (gameState.aiLevel === 4 && hand.length > 3) {
     const uselessCards = hand.filter(c => c.weight <= 5 && !cardsToPlay.some(sc => sc.id === c.id));
-    if (uselessCards.length > 0 && Math.random() < 0.45) {
+    if (uselessCards.length > 0 && Math.random() < 0.03) {
       didCheat = true;
       cheatCard = uselessCards[uselessCards.length - 1];
     }
@@ -650,7 +670,6 @@ function aiStrategyLevel4(seat, target, targetSeat) {
 
   return { cards: cardsToPlay, didCheat, cheatCard };
 }
-
 
 function executePlay(seat, cards, didCheat = false, cheatCard = null) {
   let cardsToRemove = [...cards];
@@ -768,6 +787,7 @@ function renderCardDOM(card, isBack = false) {
   return el;
 }
 
+/* 重构 AI 侧手牌渲染（采用 Stack 方式，杜绝贯穿屏） */
 function renderHands() {
   const pContainer = document.getElementById('player-hand');
   const aiRightContainer = document.getElementById('ai-right-hand');
@@ -784,11 +804,19 @@ function renderHands() {
   });
   updateDynamicCardSpacing(pContainer, gameState.hands.PLAYER.length);
 
-  aiRightContainer.innerHTML = '';
-  gameState.hands.AI_RIGHT.forEach(() => aiRightContainer.appendChild(renderCardDOM(null, true)));
-
+  // AI 左侧：重叠渲染 3 张盖牌作代表，防溢出
   aiLeftContainer.innerHTML = '';
-  gameState.hands.AI_LEFT.forEach(() => aiLeftContainer.appendChild(renderCardDOM(null, true)));
+  const leftCount = Math.min(3, gameState.hands.AI_LEFT.length);
+  for (let i = 0; i < leftCount; i++) {
+    aiLeftContainer.appendChild(renderCardDOM(null, true));
+  }
+
+  // AI 右侧：重叠渲染 3 张盖牌作代表，防溢出
+  aiRightContainer.innerHTML = '';
+  const rightCount = Math.min(3, gameState.hands.AI_RIGHT.length);
+  for (let i = 0; i < rightCount; i++) {
+    aiRightContainer.appendChild(renderCardDOM(null, true));
+  }
 
   document.getElementById('player-info').innerHTML = `玩家 (${gameState.landlord === 'PLAYER' ? '<span class="role-badge">地主</span>' : '农民'}) - 剩余: ${gameState.hands.PLAYER.length}张`;
   document.getElementById('ai-right-info').innerHTML = `AI 右 (${gameState.landlord === 'AI_RIGHT' ? '<span class="role-badge">地主</span>' : '农民'})<br>剩余: ${gameState.hands.AI_RIGHT.length}张`;
