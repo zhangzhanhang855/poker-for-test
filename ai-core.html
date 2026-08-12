@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>3-Player Dou Dizhu (Vs Master AI)</title>
+  <title>3-Player Dou Dizhu (Responsive Mobile & iPad)</title>
   <style>
     :root {
       --bg-color: #1e3d29;
@@ -12,10 +12,21 @@
       --accent-color: #f39c12;
       --text-color: #ffffff;
       
-      --card-w: clamp(40px, 9.5vw, 65px);
-      --card-h: clamp(58px, 14.2vw, 95px);
-      --font-val: clamp(12px, 2.8vw, 16px);
-      --font-suit: clamp(10px, 2.4vw, 14px);
+      /* Mobile default sizing */
+      --card-w: clamp(36px, 8.5vw, 50px);
+      --card-h: clamp(52px, 12.5vw, 75px);
+      --font-val: clamp(11px, 2.6vw, 15px);
+      --font-suit: clamp(9px, 2.2vw, 13px);
+    }
+
+    /* iPad / Tablet (768px and up) */
+    @media (min-width: 768px) {
+      :root {
+        --card-w: clamp(60px, 8vw, 85px);
+        --card-h: clamp(88px, 12vw, 125px);
+        --font-val: clamp(15px, 2.2vw, 20px);
+        --font-suit: clamp(13px, 1.8vw, 17px);
+      }
     }
 
     * { 
@@ -28,23 +39,23 @@
       touch-action: manipulation;
     }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    html, body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
       background-color: var(--bg-color);
       color: var(--text-color);
-      height: 100vh;
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       overflow: hidden;
     }
 
     #game-table {
-      flex: 1;
+      width: 100%;
+      height: 100%;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+      padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
       position: relative;
       background: radial-gradient(circle, #356845 0%, #1a3322 100%);
     }
@@ -56,7 +67,7 @@
       align-items: center;
       padding: 6px 12px;
       background: rgba(0, 0, 0, 0.45);
-      border-radius: 8px;
+      border-radius: 10px;
       gap: 8px;
       z-index: 10;
     }
@@ -70,7 +81,7 @@
     .ai-config label {
       font-weight: bold;
       color: #f1c40f;
-      font-size: clamp(11px, 2.8vw, 14px);
+      font-size: clamp(11px, 2.5vw, 15px);
       white-space: nowrap;
     }
 
@@ -80,7 +91,7 @@
       border: 1px solid var(--accent-color);
       padding: 4px 8px;
       border-radius: 6px;
-      font-size: clamp(11px, 2.8vw, 14px);
+      font-size: clamp(11px, 2.5vw, 14px);
       outline: none;
       cursor: pointer;
     }
@@ -94,18 +105,12 @@
     .middle-arena {
       flex: 1;
       display: grid;
-      grid-template-columns: 100px 1fr 100px;
+      grid-template-columns: clamp(70px, 18vw, 120px) 1fr clamp(70px, 18vw, 120px);
       gap: 6px;
       align-items: center;
       position: relative;
-      min-height: 140px;
-      margin: 6px 0;
-    }
-
-    @media (max-width: 480px) {
-      .middle-arena {
-        grid-template-columns: 75px 1fr 75px;
-      }
+      min-height: 120px;
+      margin: 4px 0;
     }
 
     .ai-side-box {
@@ -117,14 +122,15 @@
       border-radius: 8px;
       padding: 6px 4px;
       height: 100%;
+      max-height: 220px;
     }
 
     .player-info {
       font-weight: bold;
       background: rgba(0,0,0,0.65);
-      padding: 3px 8px;
+      padding: 4px 8px;
       border-radius: 10px;
-      font-size: clamp(10px, 2.5vw, 13px);
+      font-size: clamp(10px, 2.4vw, 14px);
       white-space: nowrap;
       text-align: center;
     }
@@ -151,12 +157,6 @@
       width: 100%;
     }
 
-    .played-label {
-      font-size: 12px;
-      color: #bdc3c7;
-      font-weight: bold;
-    }
-
     /* Player Bottom Section */
     .player-section {
       display: flex;
@@ -170,7 +170,7 @@
     .action-bar {
       display: flex;
       gap: 8px;
-      min-height: 42px;
+      min-height: 44px;
       align-items: center;
       justify-content: center;
       width: 100%;
@@ -183,11 +183,11 @@
       color: #fff;
       border: none;
       padding: 6px 14px;
-      font-size: clamp(12px, 3vw, 15px);
+      font-size: clamp(12px, 2.8vw, 16px);
       font-weight: bold;
-      border-radius: 18px;
+      border-radius: 20px;
       cursor: pointer;
-      min-height: 36px;
+      min-height: 40px;
       min-width: 75px;
       box-shadow: 0 3px 6px rgba(0,0,0,0.4);
       transition: transform 0.1s ease, opacity 0.2s ease;
@@ -205,7 +205,7 @@
       width: 100%;
       min-height: calc(var(--card-h) + 16px);
       box-sizing: border-box;
-      padding: 0 6px;
+      padding: 0 4px;
     }
 
     .card {
@@ -213,7 +213,7 @@
       height: var(--card-h);
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 5px;
+      border-radius: 6px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -250,8 +250,8 @@
     .black { color: #2c3e50; }
 
     .hole-cards-container .card {
-      width: calc(var(--card-w) * 0.7);
-      height: calc(var(--card-h) * 0.7);
+      width: calc(var(--card-w) * 0.75);
+      height: calc(var(--card-h) * 0.75);
       margin-left: 0 !important;
     }
 
@@ -265,7 +265,7 @@
       color: #f1c40f;
       padding: 8px 18px;
       border-radius: 18px;
-      font-size: clamp(12px, 3.2vw, 15px);
+      font-size: clamp(12px, 3.2vw, 16px);
       font-weight: bold;
       pointer-events: none;
       opacity: 0;
@@ -294,24 +294,15 @@
     .modal-box {
       background: #2c3e50;
       border: 2px solid #f39c12;
-      border-radius: 12px;
-      padding: 18px 22px;
+      border-radius: 14px;
+      padding: 20px 24px;
       text-align: center;
-      max-width: 320px;
-      width: 85%;
+      max-width: 340px;
+      width: 88%;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     }
-    .modal-title { font-size: clamp(17px, 4vw, 21px); color: #f39c12; margin-bottom: 8px; }
-    .modal-body { font-size: clamp(13px, 3.2vw, 15px); margin-bottom: 16px; color: #ecf0f1; line-height: 1.4; }
-
-    @media (min-width: 768px) {
-      :root {
-        --card-w: 65px;
-        --card-h: 95px;
-        --font-val: 17px;
-        --font-suit: 15px;
-      }
-    }
+    .modal-title { font-size: clamp(17px, 4vw, 22px); color: #f39c12; margin-bottom: 10px; }
+    .modal-body { font-size: clamp(13px, 3.2vw, 16px); margin-bottom: 18px; color: #ecf0f1; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -340,7 +331,7 @@
       <!-- AI Left -->
       <div class="ai-side-box">
         <div id="ai-left-info" class="player-info">AI 左<br>(手牌: 17)</div>
-        <div id="ai-left-hand" class="card-list" style="flex-direction: column; min-height: 80px; margin-top: 4px;"></div>
+        <div id="ai-left-hand" class="card-list" style="flex-direction: column; min-height: 60px; margin-top: 4px;"></div>
       </div>
 
       <!-- Center Played Cards Area -->
@@ -354,7 +345,7 @@
       <!-- AI Right -->
       <div class="ai-side-box">
         <div id="ai-right-info" class="player-info">AI 右<br>(手牌: 17)</div>
-        <div id="ai-right-hand" class="card-list" style="flex-direction: column; min-height: 80px; margin-top: 4px;"></div>
+        <div id="ai-right-hand" class="card-list" style="flex-direction: column; min-height: 60px; margin-top: 4px;"></div>
       </div>
     </div>
 
@@ -398,7 +389,7 @@ let gameState = {
   landlord: null,
   lastPlay: null,
   selectedCards: [],
-  phase: 'BIDDING', // 'BIDDING' | 'PLAYING'
+  phase: 'BIDDING',
   aiLevel: 4,
   playedHistory: [],
   bids: {}
@@ -460,13 +451,14 @@ function changeAiLevel(val) {
   showToast(`AI 段位切换为：${document.getElementById('ai-level').options[gameState.aiLevel-1].text}`);
 }
 
+/* Dynamic Card Spacing Calculation for Responsive Touch Displays */
 function updateDynamicCardSpacing(container, cardCount) {
   if (!container || cardCount <= 0) return;
   const cards = container.querySelectorAll('.card');
   if (cards.length === 0) return;
 
-  const containerWidth = container.clientWidth || (window.innerWidth - 30);
-  const cardWidth = cards[0].offsetWidth || 45;
+  const containerWidth = container.clientWidth || (window.innerWidth - 20);
+  const cardWidth = cards[0].offsetWidth || 40;
 
   if (cardCount === 1) {
     cards[0].style.marginLeft = '0px';
@@ -474,15 +466,16 @@ function updateDynamicCardSpacing(container, cardCount) {
   }
 
   let calculatedOverlap = (containerWidth - cardWidth) / (cardCount - 1) - cardWidth;
-  if (calculatedOverlap > -6) calculatedOverlap = -6;
-  if (calculatedOverlap < -cardWidth * 0.75) calculatedOverlap = -cardWidth * 0.75;
+  
+  if (calculatedOverlap > -4) calculatedOverlap = -4;
+  if (calculatedOverlap < -cardWidth * 0.78) calculatedOverlap = -cardWidth * 0.78;
 
   cards.forEach((card, idx) => {
     card.style.marginLeft = idx === 0 ? '0px' : `${calculatedOverlap}px`;
   });
 }
 
-  function evalHand(cards) {
+function evalHand(cards) {
   if (!cards || cards.length === 0) return { type: HAND_TYPES.INVALID };
   const sorted = [...cards].sort((a,b) => a.weight - b.weight);
   const len = sorted.length;
@@ -531,7 +524,6 @@ function canBeat(newHand, targetHand) {
   return false;
 }
 
-/* Bidding Logic for 3 Players */
 function setupBiddingUI() {
   const currentSeat = SEATS[gameState.currentTurnIdx];
   const actionBar = document.getElementById('action-bar');
@@ -558,7 +550,6 @@ function handleBid(seat, wantBid) {
     gameState.currentTurnIdx = (gameState.currentTurnIdx + 1) % 3;
     setupBiddingUI();
   } else {
-    // Determine Landlord
     const bidders = Object.keys(gameState.bids).filter(s => gameState.bids[s]);
     if (bidders.length === 0) {
       gameState.landlord = SEATS[Math.floor(Math.random() * 3)];
@@ -596,7 +587,6 @@ function getPlayAreaId(seat) {
   return 'ai-left-play-area';
 }
 
-/* Master AI Turn Execution */
 function aiTurn() {
   const seat = SEATS[gameState.currentTurnIdx];
   if (gameState.phase !== 'PLAYING' || seat === 'PLAYER') return;
@@ -615,13 +605,10 @@ function aiTurn() {
   }
 }
 
-/* Level 4 Master AI with Dynamic Cheating Logic ("夹牌") */
 function aiStrategyLevel4(seat, target, targetSeat) {
   const hand = [...gameState.hands[seat]].sort((a, b) => b.weight - a.weight);
-  const isLandlord = (seat === gameState.landlord);
   const isPartnerPlay = targetSeat && (seat !== gameState.landlord && targetSeat !== gameState.landlord);
 
-  // If partner peasant played a card, avoid over-beating partner
   if (isPartnerPlay && target && target.weight >= 10) {
     return null;
   }
@@ -629,10 +616,8 @@ function aiStrategyLevel4(seat, target, targetSeat) {
   let cardsToPlay = null;
 
   if (!target) {
-    // Leading turn
     cardsToPlay = [hand[hand.length - 1]];
   } else {
-    // Following turn: simple beat
     for (let c of hand) {
       if (canBeat(evalHand([c]), target)) {
         cardsToPlay = [c];
@@ -652,8 +637,6 @@ function aiStrategyLevel4(seat, target, targetSeat) {
 
   if (!cardsToPlay) return null;
 
-  // --- CHEATING MECHANIC (夹牌) ---
-  // Master AI cheats when it has low useless cards (3,4,5) and wants to dump them illegally!
   let didCheat = false;
   let cheatCard = null;
 
@@ -661,14 +644,14 @@ function aiStrategyLevel4(seat, target, targetSeat) {
     const uselessCards = hand.filter(c => c.weight <= 5 && !cardsToPlay.some(sc => sc.id === c.id));
     if (uselessCards.length > 0 && Math.random() < 0.45) {
       didCheat = true;
-      cheatCard = uselessCards[uselessCards.length - 1]; // Extra card secretly dropped!
+      cheatCard = uselessCards[uselessCards.length - 1];
     }
   }
 
   return { cards: cardsToPlay, didCheat, cheatCard };
 }
 
-/* Execute Playing Cards */
+
 function executePlay(seat, cards, didCheat = false, cheatCard = null) {
   let cardsToRemove = [...cards];
   if (didCheat && cheatCard) {
@@ -755,7 +738,6 @@ function handlePass() {
   advanceTurn();
 }
 
-/* Verification Feature ("我要验牌") */
 function handleVerifyCheat() {
   if (!gameState.lastPlay || gameState.lastPlay.player === 'PLAYER') {
     showToast("只能抓 AI 对手的作弊行为！");
@@ -793,7 +775,6 @@ function renderHands() {
 
   if (!pContainer || !aiRightContainer || !aiLeftContainer) return;
 
-  // Render Human Player
   pContainer.innerHTML = '';
   gameState.hands.PLAYER.forEach(card => {
     const cardEl = renderCardDOM(card);
@@ -803,14 +784,12 @@ function renderHands() {
   });
   updateDynamicCardSpacing(pContainer, gameState.hands.PLAYER.length);
 
-  // Render AI Card Backs
   aiRightContainer.innerHTML = '';
   gameState.hands.AI_RIGHT.forEach(() => aiRightContainer.appendChild(renderCardDOM(null, true)));
 
   aiLeftContainer.innerHTML = '';
   gameState.hands.AI_LEFT.forEach(() => aiLeftContainer.appendChild(renderCardDOM(null, true)));
 
-  // Update Infos
   document.getElementById('player-info').innerHTML = `玩家 (${gameState.landlord === 'PLAYER' ? '<span class="role-badge">地主</span>' : '农民'}) - 剩余: ${gameState.hands.PLAYER.length}张`;
   document.getElementById('ai-right-info').innerHTML = `AI 右 (${gameState.landlord === 'AI_RIGHT' ? '<span class="role-badge">地主</span>' : '农民'})<br>剩余: ${gameState.hands.AI_RIGHT.length}张`;
   document.getElementById('ai-left-info').innerHTML = `AI 左 (${gameState.landlord === 'AI_LEFT' ? '<span class="role-badge">地主</span>' : '农民'})<br>剩余: ${gameState.hands.AI_LEFT.length}张`;
@@ -855,7 +834,8 @@ function showToast(msg) {
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 1600);
 }
-  function showModal(title, body) {
+
+function showModal(title, body) {
   document.getElementById('modal-title').innerText = title;
   document.getElementById('modal-body').innerText = body;
   document.getElementById('custom-modal').classList.add('active');
@@ -867,6 +847,12 @@ function hideModal() {
 
 window.addEventListener('resize', () => {
   if (gameState.hands.PLAYER && gameState.hands.PLAYER.length > 0) renderHands();
+});
+
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    if (gameState.hands.PLAYER && gameState.hands.PLAYER.length > 0) renderHands();
+  }, 200);
 });
 
 window.onload = initGame;
