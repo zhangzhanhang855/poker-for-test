@@ -3,19 +3,28 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
+
+// Middlewares
 app.use(express.json());
 app.use(cors());
 
-const JWT_SECRET = 'jrai_doudizhu_secret_2026';
+// Serve static files (index.html, styles, etc.) from root directory
+app.use(express.static(__dirname));
 
-// MongoDB Connection
-mongoose.connect('mongodb+srv://buenosairesampy563_db_user:congcong2012@cluster0.aaks5du.mongodb.net/?appName=Cluster0')
-  .then(() => console.log('Connected to MongoDB successfully.'))
+// Render Environment Variables
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'jrai_doudizhu_secret_2026';
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://buenosairesampy563_db_user:congcong2012@cluster0.aaks5du.mongodb.net/?appName=Cluster0';
+
+// Connect to MongoDB Atlas / Local MongoDB
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('Successfully connected to MongoDB.'))
   .catch(err => console.error('MongoDB Connection Error:', err));
 
-// User Schema
+// MongoDB User Schema
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -26,39 +35,45 @@ const UserSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', UserSchema);
 
-// Auth Middleware
+// JWT Verification Middleware
 const authMiddleware = (req, res, next) => {
-  const token = req.headers['authorization'];
-  if (!token) return res.status(401).json({ success: false, msg: 'No token provided' });
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) return res.status(401).json({ success: false, msg: '无 Token 权限，请重新登录' });
+  
   try {
-    const decoded = jwt.verify(token.replace('Bearer ', ''), JWT_SECRET);
+    const token = authHeader.replace('Bearer ', '');
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.userId;
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, msg: 'Invalid or expired token' });
+    return res.status(401).json({ success: false, msg: '登录已过期或凭证无效' });
   }
 };
 
-// 1. Register
+/* ========================================================================= */
+/*                              API ROUTES                                   */
+/* ========================================================================= */
+
+// 1. User Registration
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ success: false, msg: '账号密码不能为空' });
-  
+  if (!username || !password) return res.status(400).json({ success: false, msg: '账号和密码不能为空' });
+
   try {
     const existingUser = await User.findOne({ username });
-    if (existingUser) return res.status(400).json({ success: false, msg: '账号已存在' });
+    if (existingUser) return res.status(400).json({ success: false, msg: '该账号名称已被注册' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({ username, password: hashedPassword });
     await newUser.save();
 
-    res.json({ success: true, msg: '注册成功，请登录！' });
+    res.json({ success: true, msg: '注册成功，请使用新账号登录！' });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '服务器错误' });
+    res.status(500).json({ success: false, msg: '服务器注册异常' });
   }
 });
 
-// 2. Login
+// 2. User Login
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -80,30 +95,31 @@ app.post('/api/login', async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '服务器错误' });
+    res.status(500).json({ success: false, msg: '服务器登录异常' });
   }
 });
 
-// 3. Get Profile
+// 3. Get Current User Profile
 app.get('/api/user/profile', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
+    if (!user) return res.status(404).json({ success: false, msg: '用户不存在' });
     res.json({ success: true, user });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '服务器错误' });
+    res.status(500).json({ success: false, msg: '获取用户信息失败' });
   }
 });
 
-// 4. Market - Buy Skin
+// 4. Market - Buy Card Skin
 app.post('/api/market/buy', authMiddleware, async (req, res) => {
   const { skinId, price } = req.body;
   try {
     const user = await User.findById(req.userId);
     if (user.unlockedSkins.includes(skinId)) {
-      return res.status(400).json({ success: false, msg: '已拥有该皮肤' });
+      return res.status(400).json({ success: false, msg: '您已拥有此皮肤' });
     }
     if (user.coins < price) {
-      return res.status(400).json({ success: false, msg: '金币不足' });
+      return res.status(400).json({ success: false, msg: '金币不足，无法购买' });
     }
 
     user.coins -= price;
@@ -111,9 +127,14 @@ app.post('/api/market/buy', authMiddleware, async (req, res) => {
     user.equippedSkin = skinId;
     await user.save();
 
-    res.json({ success: true, coins: user.coins, unlockedSkins: user.unlockedSkins, equippedSkin: user.equippedSkin });
+    res.json({ 
+      success: true, 
+      coins: user.coins, 
+      unlockedSkins: user.unlockedSkins, 
+      equippedSkin: user.equippedSkin 
+    });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '购买失败' });
+    res.status(500).json({ success: false, msg: '购买失败，服务器内部错误' });
   }
 });
 
@@ -130,21 +151,21 @@ app.post('/api/market/equip', authMiddleware, async (req, res) => {
     await user.save();
     res.json({ success: true, equippedSkin: user.equippedSkin });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '设置失败' });
+    res.status(500).json({ success: false, msg: '设置佩戴皮肤失败' });
   }
 });
 
-// 6. Account Management - Delete Account (注销)
+// 6. Account Management - Delete Account
 app.post('/api/user/delete', authMiddleware, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.userId);
-    res.json({ success: true, msg: '账号已注销' });
+    res.json({ success: true, msg: '账号注销成功' });
   } catch (err) {
     res.status(500).json({ success: false, msg: '注销失败' });
   }
 });
 
-// 7. Game Reward (Add Coins on Match Finish)
+// 7. Game Reward & Coins Settlement
 app.post('/api/game/reward', authMiddleware, async (req, res) => {
   const { amount } = req.body;
   try {
@@ -154,8 +175,16 @@ app.post('/api/game/reward', authMiddleware, async (req, res) => {
     await user.save();
     res.json({ success: true, coins: user.coins });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '结算失败' });
+    res.status(500).json({ success: false, msg: '金币结算失败' });
   }
 });
 
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+// Wildcard Route: Catch-all to serve index.html for Single Page Application
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Start Node Server
+app.listen(PORT, () => {
+  console.log(`Server executing successfully on port ${PORT}`);
+});
