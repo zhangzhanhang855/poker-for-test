@@ -18,7 +18,6 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('Successfully connected to MongoDB.'))
   .catch(err => console.error('MongoDB Connection Error:', err));
 
-// Updated Schema with multi-game coins
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -46,7 +45,6 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-/* API ROUTES */
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ success: false, msg: '账号密码不能为空' });
@@ -97,35 +95,22 @@ app.get('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// Market Purchase (Deducts from Dou Dizhu coins by default or specified pool)
 app.post('/api/market/buy', authMiddleware, async (req, res) => {
   const { skinId, price } = req.body;
   try {
     const user = await User.findById(req.userId);
-    if (user.unlockedSkins.includes(skinId)) {
-      return res.status(400).json({ success: false, msg: '已拥有该皮肤' });
-    }
-    
-    // Total wealth check
-    const totalCoins = user.coins.doudizhu + user.coins.zhajinhua + user.coins.blackjack;
-    if (totalCoins < price) {
-      return res.status(400).json({ success: false, msg: '所有游戏总金币不足！' });
-    }
+    if (user.unlockedSkins.includes(skinId)) return res.status(400).json({ success: false, msg: '已拥有该皮肤' });
 
-    // Deduct from pool priority
+    const totalCoins = user.coins.doudizhu + user.coins.zhajinhua + user.coins.blackjack;
+    if (totalCoins < price) return res.status(400).json({ success: false, msg: '金币不足！' });
+
     let remaining = price;
     if (user.coins.doudizhu >= remaining) {
       user.coins.doudizhu -= remaining;
     } else {
-      remaining -= user.coins.doudizhu;
-      user.coins.doudizhu = 0;
-      if (user.coins.zhajinhua >= remaining) {
-        user.coins.zhajinhua -= remaining;
-      } else {
-        remaining -= user.coins.zhajinhua;
-        user.coins.zhajinhua = 0;
-        user.coins.blackjack -= remaining;
-      }
+      remaining -= user.coins.doudizhu; user.coins.doudizhu = 0;
+      if (user.coins.zhajinhua >= remaining) { user.coins.zhajinhua -= remaining; }
+      else { remaining -= user.coins.zhajinhua; user.coins.zhajinhua = 0; user.coins.blackjack -= remaining; }
     }
 
     user.unlockedSkins.push(skinId);
@@ -151,16 +136,13 @@ app.post('/api/market/equip', authMiddleware, async (req, res) => {
   }
 });
 
-// Multi-Game Coin Reward Settlement
 app.post('/api/game/reward', authMiddleware, async (req, res) => {
-  const { gameType, amount } = req.body; // gameType: 'doudizhu' | 'zhajinhua' | 'blackjack'
+  const { gameType, amount } = req.body;
   try {
     const user = await User.findById(req.userId);
     if (!user.coins[gameType] && user.coins[gameType] !== 0) user.coins[gameType] = 1000;
-    
     user.coins[gameType] += amount;
     if (user.coins[gameType] < 0) user.coins[gameType] = 0;
-    
     await user.save();
     res.json({ success: true, coins: user.coins });
   } catch (err) {
@@ -178,5 +160,4 @@ app.post('/api/user/delete', authMiddleware, async (req, res) => {
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
