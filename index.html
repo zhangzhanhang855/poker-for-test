@@ -58,14 +58,14 @@
     .skin-item.equipped { border-color: #2ecc71; }
     .skin-preview { width: 40px; height: 55px; border-radius: 4px; }
 
-    /* Card Skins Engine Fix */
+    /* Card Skins Engine */
     .card.back { border: 1.5px solid #fff; border-radius: 6px; }
     .card.back.skin-default { background: linear-gradient(135deg, #2980b9, #2c3e50); }
     .card.back.skin-gold { background: linear-gradient(135deg, #f39c12, #f1c40f); }
     .card.back.skin-red { background: linear-gradient(135deg, #e74c3c, #c0392b); }
     .card.back.skin-purple { background: linear-gradient(135deg, #8e44ad, #2c3e50); }
 
-    /* Game Table Styling */
+    /* Game Table Layout */
     #game-table { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); position: relative; background: radial-gradient(circle, #356845 0%, #1a3322 100%); }
     .top-section { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(0,0,0,0.45); border-radius: 10px; gap: 8px; z-index: 10; }
     .ai-config { display: flex; align-items: center; gap: 6px; }
@@ -78,7 +78,7 @@
     .player-info { font-weight: bold; background: rgba(0,0,0,0.65); padding: 4px 8px; border-radius: 10px; font-size: clamp(10px, 2.4vw, 14px); white-space: nowrap; text-align: center; }
     .role-badge { color: #f39c12; font-weight: bold; }
 
-    .ai-card-stack { position: relative; width: calc(var(--card-w) * 0.8); height: calc(var(--card-h) * 0.8); margin-top: 8px; }
+    .ai-card-stack { position: relative; width: calc(var(--card-w) * 0.8); height: calc(var(--card-h) * 0.8); margin-top: 8px; display: flex; justify-content: center; }
     .ai-card-stack .card { position: absolute; top: 0; left: 0; width: 100%; height: 100%; margin-left: 0 !important; }
 
     .center-play-area { display: flex; flex-direction: column; justify-content: space-around; align-items: center; height: 100%; position: relative; }
@@ -159,7 +159,7 @@
     <div id="game-table">
       <div class="top-section">
         <div class="ai-config">
-          <button class="btn btn-secondary" style="min-width:55px; padding:2px 6px; font-size:12px;" onclick="returnToHome()">主页</button>
+          <button class="btn btn-secondary" style="min-width:55px; padding:2px 6px; font-size:12px;" onclick="returnToHome()">返回主页</button>
           <span id="game-mode-label" style="font-weight:bold; color:#f1c40f; margin-left:6px;">斗地主</span>
           <select id="ai-level" style="margin-left:6px;" onchange="changeAiLevel(this.value)">
             <option value="1">青铜 (随机)</option>
@@ -203,7 +203,7 @@
     <div class="modal-box">
       <div id="modal-title" class="modal-title">提示</div>
       <div id="modal-body" class="modal-body">信息</div>
-      <button class="btn" id="modal-btn" onclick="hideModal()">确定</button>
+      <button class="btn" id="modal-btn">确定</button>
     </div>
   </div>
 
@@ -283,9 +283,9 @@ async function checkLogin() {
 
 function loadHomeScreen() {
   document.getElementById('home-username').innerText = currentUser.username;
-  document.getElementById('coin-doudizhu').innerText = currentUser.coins.doudizhu || 0;
-  document.getElementById('coin-zhajinhua').innerText = currentUser.coins.zhajinhua || 0;
-  document.getElementById('coin-blackjack').innerText = currentUser.coins.blackjack || 0;
+  document.getElementById('coin-doudizhu').innerText = currentUser.coins?.doudizhu ?? 1000;
+  document.getElementById('coin-zhajinhua').innerText = currentUser.coins?.zhajinhua ?? 1000;
+  document.getElementById('coin-blackjack').innerText = currentUser.coins?.blackjack ?? 1000;
   showScreen('home-screen');
 }
 
@@ -294,7 +294,7 @@ async function deleteAccount() {
   if (confirm('确定注销账号？')) { const res = await apiCall('/user/delete', 'POST'); if (res.success) logout(); }
 }
 
-/* 完美修好的皮肤渲染函数 (FIXED BUG) */
+/* Card Skin Rendering Engine */
 function renderCardDOM(card, isBack = false) {
   const el = document.createElement('div');
   const equippedSkinId = currentUser ? currentUser.equippedSkin : 'default';
@@ -359,10 +359,29 @@ function startGame(mode) {
   if (mode === 'blackjack') initBlackjack();
 }
 
-function returnToHome() { loadHomeScreen(); }
+function returnToHome() {
+  hideModal();
+  clearPlayAreas();
+  document.getElementById('action-bar').innerHTML = '';
+  loadHomeScreen();
+}
+
+/* Modal Engine with Callback Support */
+function showModal(title, body, onConfirm = null) {
+  document.getElementById('modal-title').innerText = title;
+  document.getElementById('modal-body').innerText = body;
+  const btn = document.getElementById('modal-btn');
+  btn.onclick = () => {
+    hideModal();
+    if (onConfirm) onConfirm();
+  };
+  document.getElementById('custom-modal').classList.add('active');
+}
+
+function hideModal() { document.getElementById('custom-modal').classList.remove('active'); }
 
 /* ========================================================================= */
-/* 1. 原封不动完整斗地主引擎 (INTACT DOU DI ZHU ENGINE)                     */
+/* 1. ORIGINAL DOU DI ZHU ENGINE (100% INTACT)                               */
 /* ========================================================================= */
 const SUITS = ['♠', '♥', '♣', '♦'];
 const VAL_MAP = {
@@ -562,7 +581,6 @@ function aiTurn() {
   }
 }
 
-/* 王者 AI 完全算牌与夹牌策略 */
 function aiStrategyLevel4(seat, target, targetSeat) {
   const hand = [...gameState.hands[seat]].sort((a, b) => b.weight - a.weight);
   const isPartnerPlay = targetSeat && (seat !== gameState.landlord && targetSeat !== gameState.landlord);
@@ -590,7 +608,6 @@ function aiStrategyLevel4(seat, target, targetSeat) {
   let didCheat = false;
   let cheatCard = null;
 
-  // 3% 夹牌概率
   if (gameState.aiLevel === 4 && hand.length > 3) {
     const uselessCards = hand.filter(c => c.weight <= 5 && !cardsToPlay.some(sc => sc.id === c.id));
     if (uselessCards.length > 0 && Math.random() < 0.03) {
@@ -622,7 +639,7 @@ function executePlay(seat, cards, didCheat = false, cheatCard = null) {
     const reward = isWin ? 200 : -100;
 
     apiCall('/game/reward', 'POST', { gameType: 'doudizhu', amount: reward }).then(res => { if(res.success) currentUser.coins = res.coins; });
-    showModal("对局结束", `${getSeatName(seat)}（${winnerRole}）率先出完牌！${isWin ? '您获得了 200 金币！' : '您扣除了 100 金币。'}`);
+    showModal("对局结束", `${getSeatName(seat)}（${winnerRole}）率先出完牌！${isWin ? '您获得了 200 金币！' : '您扣除了 100 金币。'}`, initGame);
     return;
   }
 
@@ -650,7 +667,6 @@ function setupPlayingUI() {
     <button class="btn btn-verify" onclick="handleVerifyCheat()" ${!canVerify ? 'disabled' : ''}>我要验牌</button>
   `;
 }
-
 function handlePlayCard() {
   if (gameState.selectedCards.length === 0) return showToast("请先选择要出的牌！");
 
@@ -677,10 +693,10 @@ function handleVerifyCheat() {
 
   if (gameState.lastPlay.didCheat) {
     apiCall('/game/reward', 'POST', { gameType: 'doudizhu', amount: 500 }).then(r => currentUser.coins = r.coins);
-    showModal("验牌成功！🚨", `抓包成功！${targetSeatName} 在刚才的出牌中偷夹了底牌作弊！被取消资格，玩家阵营获胜并赢 500 金币！`);
+    showModal("验牌成功！🚨", `抓包成功！${targetSeatName} 在刚才的出牌中偷夹了底牌作弊！被取消资格，玩家阵营获胜并赢 500 金币！`, initGame);
   } else {
     apiCall('/game/reward', 'POST', { gameType: 'doudizhu', amount: -200 }).then(r => currentUser.coins = r.coins);
-    showModal("验牌失败！❌", `验牌结果：${targetSeatName} 刚才出牌完全合规！误报扣除 200 金币。`);
+    showModal("验牌失败！❌", `验牌结果：${targetSeatName} 刚才出牌完全合规！误报扣除 200 金币。`, initGame);
   }
 }
 
@@ -739,7 +755,7 @@ function updateRoleBadges() {
 }
 
 /* ========================================================================= */
-/* 2. ZHA JIN HUA (炸金花)                                                   */
+/* 2. REVISED ZHA JIN HUA (炸金花)                                           */
 /* ========================================================================= */
 let zjhState = { hands: {}, pot: 0, currentBet: 20, folded: {} };
 
@@ -750,47 +766,73 @@ function initZhaJinHua() {
   zjhState.hands = { PLAYER: deck.slice(0, 3), AI_RIGHT: deck.slice(3, 6), AI_LEFT: deck.slice(6, 9) };
   zjhState.pot = 60; zjhState.currentBet = 20; zjhState.folded = { PLAYER: false, AI_RIGHT: false, AI_LEFT: false };
 
-  renderZJH();
+  renderZJH(false);
   document.getElementById('action-bar').innerHTML = `
     <button class="btn" onclick="zjhCall()">跟注 (${zjhState.currentBet})</button>
     <button class="btn" onclick="zjhRaise()">加注 (+20)</button>
     <button class="btn btn-secondary" onclick="zjhFold()">弃牌</button>
-    <button class="btn btn-verify" onclick="zjhShowdown()">开牌</button>
+    <button class="btn btn-verify" onclick="zjhShowdown()">开牌 (Showdown)</button>
   `;
+  showToast("炸金花局开幕，底注 20 金币");
 }
 
-function renderZJH() {
+function renderZJH(revealAll = false) {
   const pContainer = document.getElementById('player-hand'); pContainer.innerHTML = '';
   zjhState.hands.PLAYER.forEach(card => pContainer.appendChild(renderCardDOM(card)));
 
-  const aiL = document.getElementById('ai-left-hand'); aiL.innerHTML = ''; for (let i = 0; i < 3; i++) aiL.appendChild(renderCardDOM(null, true));
-  const aiR = document.getElementById('ai-right-hand'); aiR.innerHTML = ''; for (let i = 0; i < 3; i++) aiR.appendChild(renderCardDOM(null, true));
+  const aiL = document.getElementById('ai-left-hand'); aiL.innerHTML = '';
+  zjhState.hands.AI_LEFT.forEach(card => aiL.appendChild(renderCardDOM(card, !revealAll)));
 
-  document.getElementById('player-info').innerHTML = `玩家 - 奖池: ${zjhState.pot}`;
-  document.getElementById('ai-left-info').innerHTML = 'AI 左'; document.getElementById('ai-right-info').innerHTML = 'AI 右';
+  const aiR = document.getElementById('ai-right-hand'); aiR.innerHTML = '';
+  zjhState.hands.AI_RIGHT.forEach(card => aiR.appendChild(renderCardDOM(card, !revealAll)));
+
+  document.getElementById('player-info').innerHTML = `玩家 - 底池奖池: ${zjhState.pot}`;
+  document.getElementById('ai-left-info').innerHTML = zjhState.folded.AI_LEFT ? 'AI 左 (弃牌)' : 'AI 左';
+  document.getElementById('ai-right-info').innerHTML = zjhState.folded.AI_RIGHT ? 'AI 右 (弃牌)' : 'AI 右';
 }
 
-function zjhCall() { zjhState.pot += zjhState.currentBet; renderZJH(); showToast("跟注成功"); }
-function zjhRaise() { zjhState.currentBet += 20; zjhState.pot += zjhState.currentBet; renderZJH(); showToast("加注成功"); }
+function zjhCall() { zjhState.pot += zjhState.currentBet * 3; renderZJH(false); showToast("全员跟注"); }
+function zjhRaise() { zjhState.currentBet += 20; zjhState.pot += zjhState.currentBet * 3; renderZJH(false); showToast(`加注至 ${zjhState.currentBet}`); }
 function zjhFold() {
+  zjhState.folded.PLAYER = true;
   apiCall('/game/reward', 'POST', { gameType: 'zhajinhua', amount: -zjhState.currentBet }).then(r => currentUser.coins = r.coins);
-  showModal("炸金花", "已弃牌！");
+  showModal("炸金花", "您选择了弃牌！", initZhaJinHua);
+}
+
+function evalZJHScore(cards) {
+  const w = cards.map(c => c.weight).sort((a,b) => b - a);
+  const s = cards.map(c => c.suit);
+  const isFlush = s[0] === s[1] && s[1] === s[2];
+  const isStraight = (w[0] - w[1] === 1) && (w[1] - w[2] === 1);
+  const isLeopard = w[0] === w[1] && w[1] === w[2];
+  const isPair = w[0] === w[1] || w[1] === w[2] || w[0] === w[2];
+
+  if (isLeopard) return 5000 + w[0];
+  if (isFlush && isStraight) return 4000 + w[0];
+  if (isFlush) return 3000 + w[0] * 10 + w[1];
+  if (isStraight) return 2000 + w[0];
+  if (isPair) {
+    const pairVal = w[0] === w[1] ? w[0] : (w[1] === w[2] ? w[1] : w[0]);
+    return 1000 + pairVal * 10;
+  }
+  return w[0] * 10 + w[1];
 }
 
 function zjhShowdown() {
-  const pScore = zjhState.hands.PLAYER.reduce((a,c)=>a+c.weight,0);
-  const rScore = zjhState.hands.AI_RIGHT.reduce((a,c)=>a+c.weight,0);
-  const lScore = zjhState.hands.AI_LEFT.reduce((a,c)=>a+c.weight,0);
+  renderZJH(true); // Flip all cards
+  const pScore = evalZJHScore(zjhState.hands.PLAYER);
+  const rScore = evalZJHScore(zjhState.hands.AI_RIGHT);
+  const lScore = evalZJHScore(zjhState.hands.AI_LEFT);
 
   const isWin = pScore >= rScore && pScore >= lScore;
   const reward = isWin ? zjhState.pot : -zjhState.currentBet;
 
   apiCall('/game/reward', 'POST', { gameType: 'zhajinhua', amount: reward }).then(r => currentUser.coins = r.coins);
-  showModal("比牌结果", isWin ? `获胜！赢得奖池金币 ${zjhState.pot}` : "惜败！点数不及对手");
+  showModal("炸金花开牌结算", isWin ? `🎉 恭喜！您赢得了奖池金币 ${zjhState.pot}！` : "❌ 惜败！点数不及对手。", initZhaJinHua);
 }
 
 /* ========================================================================= */
-/* 3. BLACKJACK (21点)                                                       */
+/* 3. REVISED BLACKJACK (21点)                                              */
 /* ========================================================================= */
 let bjState = { playerHand: [], dealerHand: [], deck: [], bet: 50 };
 
@@ -801,10 +843,10 @@ function initBlackjack() {
   bjState.playerHand = [bjState.deck.pop(), bjState.deck.pop()];
   bjState.dealerHand = [bjState.deck.pop(), bjState.deck.pop()];
 
-  renderBJ();
+  renderBJ(false);
   document.getElementById('action-bar').innerHTML = `
-    <button class="btn" onclick="bjHit()">要牌</button>
-    <button class="btn btn-secondary" onclick="bjStand()">停牌</button>
+    <button class="btn" onclick="bjHit()">要牌 (Hit)</button>
+    <button class="btn btn-secondary" onclick="bjStand()">停牌 (Stand)</button>
   `;
 }
 
@@ -819,50 +861,52 @@ function getBJScore(hand) {
   return score;
 }
 
-function renderBJ() {
+function renderBJ(revealDealer = false) {
   const pContainer = document.getElementById('player-hand'); pContainer.innerHTML = '';
   bjState.playerHand.forEach(c => pContainer.appendChild(renderCardDOM(c)));
 
   const dealerBox = document.getElementById('ai-left-hand'); dealerBox.innerHTML = '';
-  dealerBox.appendChild(renderCardDOM(bjState.dealerHand[0])); dealerBox.appendChild(renderCardDOM(null, true));
+  bjState.dealerHand.forEach((c, idx) => {
+    if (idx === 1 && !revealDealer) dealerBox.appendChild(renderCardDOM(null, true));
+    else dealerBox.appendChild(renderCardDOM(c));
+  });
 
-  document.getElementById('player-info').innerHTML = `玩家 (点数: ${getBJScore(bjState.playerHand)})`;
-  document.getElementById('ai-left-info').innerHTML = `庄家 AI`;
-  document.getElementById('ai-right-info').innerHTML = `底注: ${bjState.bet}`;
+  const pScore = getBJScore(bjState.playerHand);
+  const dScore = revealDealer ? getBJScore(bjState.dealerHand) : '?';
+
+  document.getElementById('player-info').innerHTML = `玩家 (点数: ${pScore})`;
+  document.getElementById('ai-left-info').innerHTML = `庄家 AI (点数: ${dScore})`;
+  document.getElementById('ai-right-info').innerHTML = `本局底注: ${bjState.bet}`;
 }
 
 function bjHit() {
-  bjState.playerHand.push(bjState.deck.pop()); renderBJ();
+  bjState.playerHand.push(bjState.deck.pop()); renderBJ(false);
   if (getBJScore(bjState.playerHand) > 21) {
+    renderBJ(true);
     apiCall('/game/reward', 'POST', { gameType: 'blackjack', amount: -bjState.bet }).then(r => currentUser.coins = r.coins);
-    showModal("爆牌！", "点数已超过 21 点！");
+    showModal("爆牌！❌", "您的总点数超过 21 点，直接爆牌！", initBlackjack);
   }
 }
 
 function bjStand() {
   let dScore = getBJScore(bjState.dealerHand);
-  while (dScore < 17) { bjState.dealerHand.push(bjState.deck.pop()); dScore = getBJScore(bjState.dealerHand); }
+  while (dScore < 17) {
+    bjState.dealerHand.push(bjState.deck.pop());
+    dScore = getBJScore(bjState.dealerHand);
+  }
 
+  renderBJ(true);
   const pScore = getBJScore(bjState.playerHand);
   const win = dScore > 21 || pScore > dScore;
 
   apiCall('/game/reward', 'POST', { gameType: 'blackjack', amount: win ? bjState.bet : -bjState.bet }).then(r => currentUser.coins = r.coins);
-  showModal("21点 结算", win ? `胜利！获赠 ${bjState.bet} 金币` : `失败！庄家 ${dScore} 点`);
+  showModal("21点 结算", win ? `🎉 胜利！您的点数 (${pScore}) 击败了庄家，赢取 ${bjState.bet} 金币！` : `❌ 失败！庄家 (${dScore}点) 获胜。`, initBlackjack);
 }
 
 function showToast(msg) {
   const toast = document.getElementById('toast'); if (!toast) return;
   toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 1500);
 }
-
-function showModal(title, body) {
-  document.getElementById('modal-title').innerText = title;
-  document.getElementById('modal-body').innerText = body;
-  document.getElementById('modal-btn').onclick = hideModal;
-  document.getElementById('custom-modal').classList.add('active');
-}
-
-function hideModal() { document.getElementById('custom-modal').classList.remove('active'); }
 
 window.onload = checkLogin;
 </script>
