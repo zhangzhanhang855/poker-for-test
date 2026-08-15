@@ -1,15 +1,34 @@
 {
-  "name": "doudizhu-game",
+  "name": "jrai-card-games",
   "version": "1.0.0",
+  "description": "3-Player Dou Dizhu, Zha Jin Hua, and Blackjack with MongoDB Auth & Secure Cookie Session",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
+  "keywords": [
+    "doudizhu",
+    "zhajinhua",
+    "blackjack",
+    "mongodb",
+    "express",
+    "game"
+  ],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.0",
-    "mongoose": "^7.0.0"
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
