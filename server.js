@@ -9,7 +9,13 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({ origin: true, credentials: true }));
+
+// 允许携带凭证的 CORS 配置
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
 app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
@@ -17,7 +23,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'jrai_secure_doudizhu_secret_2026';
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://buenosairesampy563_db_user:congcong2012@cluster0.aaks5du.mongodb.net/?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('Successfully connected to MongoDB.'))
+  .then(() => console.log('MongoDB connected successfully.'))
   .catch(err => console.error('MongoDB Connection Error:', err));
 
 const UserSchema = new mongoose.Schema({
@@ -47,7 +53,6 @@ const GAME_RULES = {
   blackjack: { WIN: 50, BLACKJACK_WIN: 75, LOSE: -50, PUSH: 0 }
 };
 
-// 数据模型兼容性兜底函数
 function ensureUserCoins(user) {
   if (!user.coins || typeof user.coins !== 'object') {
     user.coins = { doudizhu: 1000, zhajinhua: 1000, blackjack: 1000 };
@@ -60,8 +65,9 @@ function ensureUserCoins(user) {
   }
 }
 
+// 鉴权中间件
 const authMiddleware = (req, res, next) => {
-  const token = req.cookies.auth_token;
+  const token = req.cookies.auth_token || req.headers['authorization']?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ success: false, msg: '未登录或登录失效' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -73,46 +79,55 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-/* API ROUTES */
+/* API 接口 */
+
+// 注册
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ success: false, msg: '账号密码不能为空' });
+  if (!username || !password) return res.status(400).json({ success: false, msg: '账号与密码不能为空' });
+  
   try {
-    const existingUser = await User.findOne({ username });
-    if (existingUser) return res.status(400).json({ success: false, msg: '账号已存在' });
+    const existingUser = await User.findOne({ username: username.trim() });
+    if (existingUser) return res.status(400).json({ success: false, msg: '该账号已存在' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({ 
-      username, 
+      username: username.trim(), 
       password: hashedPassword,
       coins: { doudizhu: 1000, zhajinhua: 1000, blackjack: 1000 },
       unlockedSkins: ['default'],
       equippedSkin: 'default'
     });
     await newUser.save();
-    res.json({ success: true, msg: '注册成功，请登录！' });
+    res.json({ success: true, msg: '注册成功，请切换至登录！' });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '注册异常' });
+    console.error(err);
+    res.status(500).json({ success: false, msg: '注册失败，请重试' });
   }
 });
 
+// 登录
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ success: false, msg: '请输入账号和密码' });
+
   try {
-    const user = await User.findOne({ username });
-    if (!user) return res.status(400).json({ success: false, msg: '账号或密码错误' });
+    const user = await User.findOne({ username: username.trim() });
+    if (!user) return res.status(400).json({ success: false, msg: '账号不存在，请先注册' });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ success: false, msg: '账号或密码错误' });
+    if (!isMatch) return res.status(400).json({ success: false, msg: '密码错误' });
 
     ensureUserCoins(user);
     await user.save();
 
     const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '7d' });
+    
+    // 兼容本地开发与 Render 生产环境的 Cookie 配置
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: false, // 允许 HTTP (本地调试) 与 HTTPS 均可写入
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -126,7 +141,8 @@ app.post('/api/login', async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(500).json({ success: false, msg: '登录异常' });
+    console.error(err);
+    res.status(500).json({ success: false, msg: '登录服务异常' });
   }
 });
 
@@ -146,7 +162,6 @@ app.get('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// 购买皮肤
 app.post('/api/market/buy', authMiddleware, async (req, res) => {
   const { skinId } = req.body;
   if (!skinId || !SERVER_SKINS[skinId]) return res.status(400).json({ success: false, msg: '非法皮肤标识' });
@@ -162,7 +177,7 @@ app.post('/api/market/buy', authMiddleware, async (req, res) => {
 
     const totalCoins = user.coins.doudizhu + user.coins.zhajinhua + user.coins.blackjack;
     if (totalCoins < price) {
-      return res.status(400).json({ success: false, msg: `金币不足！需要 ${price} 金币，您当前总计只有 ${totalCoins}` });
+      return res.status(400).json({ success: false, msg: `金币不足！需要 ${price} 金币` });
     }
 
     let remaining = price;
@@ -193,12 +208,10 @@ app.post('/api/market/buy', authMiddleware, async (req, res) => {
       equippedSkin: user.equippedSkin
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, msg: '购买结算异常' });
+    res.status(500).json({ success: false, msg: '购买失败' });
   }
 });
 
-// 穿戴皮肤
 app.post('/api/market/equip', authMiddleware, async (req, res) => {
   const { skinId } = req.body;
   try {
@@ -214,7 +227,6 @@ app.post('/api/market/equip', authMiddleware, async (req, res) => {
   }
 });
 
-// 游戏金币结算
 app.post('/api/game/reward', authMiddleware, async (req, res) => {
   const { gameType, action } = req.body;
   if (!GAME_RULES[gameType] || typeof GAME_RULES[gameType][action] !== 'number') {
@@ -232,7 +244,6 @@ app.post('/api/game/reward', authMiddleware, async (req, res) => {
 
     res.json({ success: true, coins: user.coins, delta });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false, msg: '结算异常' });
   }
 });
@@ -248,4 +259,4 @@ app.post('/api/user/delete', authMiddleware, async (req, res) => {
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
