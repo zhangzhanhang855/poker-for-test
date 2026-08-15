@@ -14,7 +14,7 @@ app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'jrai_secure_doudizhu_secret_2026';
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/doudizhu_db';
+const MONGO_URI = process.env.MONGODB_URI || 'mongodb+srv://buenosairesampy563_db_user:congcong2012@cluster0.aaks5du.mongodb.net/?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('Successfully connected to MongoDB.'))
