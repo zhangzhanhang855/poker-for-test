@@ -3,7 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>JR扑克游戏城</title>
+  <title>JR AI 棋牌游戏城</title>
+
+  <!-- 1. 优先加载并初始化 Eruda 移动端调试工具 -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda" crossorigin="anonymous"></script>
+  <script>
+    if (typeof eruda !== 'undefined') {
+      eruda.init();
+    }
+    // 捕获跨域/运行时全局错误
+    window.addEventListener('error', function(e) {
+      console.error('[Runtime Error]:', e.message, 'at', e.filename, ':', e.lineno);
+    });
+  </script>
+
   <style>
     :root {
       --bg-color: #1e3d29;
@@ -26,8 +39,24 @@
       }
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-    html, body { width: 100%; height: 100%; height: 100dvh; background-color: var(--bg-color); color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow: hidden; }
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      user-select: none; 
+      -webkit-user-select: none; 
+      touch-action: manipulation; 
+    }
+
+    html, body { 
+      width: 100%; 
+      height: 100%; 
+      height: 100dvh; 
+      background-color: var(--bg-color); 
+      color: var(--text-color); 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+      overflow: hidden; 
+    }
 
     .screen { display: none; width: 100%; height: 100%; flex-direction: column; }
     .screen.active { display: flex; }
