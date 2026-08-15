@@ -11,7 +11,6 @@
       --card-border: #cccccc;
       --accent-color: #f39c12;
       --text-color: #ffffff;
-      
       --card-w: clamp(38px, 9vw, 55px);
       --card-h: clamp(55px, 13vw, 80px);
       --font-val: clamp(11px, 2.6vw, 15px);
@@ -58,14 +57,14 @@
     .skin-item.equipped { border-color: #2ecc71; }
     .skin-preview { width: 40px; height: 55px; border-radius: 4px; }
 
-    /* Card Skins Engine */
+    /* Card Skins */
     .card.back { border: 1.5px solid #fff; border-radius: 6px; }
     .card.back.skin-default { background: linear-gradient(135deg, #2980b9, #2c3e50); }
     .card.back.skin-gold { background: linear-gradient(135deg, #f39c12, #f1c40f); }
     .card.back.skin-red { background: linear-gradient(135deg, #e74c3c, #c0392b); }
     .card.back.skin-purple { background: linear-gradient(135deg, #8e44ad, #2c3e50); }
 
-    /* Game Table Layout */
+    /* Table Layout */
     #game-table { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); position: relative; background: radial-gradient(circle, #356845 0%, #1a3322 100%); }
     .top-section { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(0,0,0,0.45); border-radius: 10px; gap: 8px; z-index: 10; }
     .ai-config { display: flex; align-items: center; gap: 6px; }
@@ -151,7 +150,7 @@
       </div>
     </div>
 
-    <div style="font-size: 12px; color: #888;">JR AI 棋牌游乐中心 v3.0</div>
+    <div style="font-size: 12px; color: #888;">JR AI 棋牌游乐中心 v3.1</div>
   </div>
 
   <!-- GAME SCREEN -->
@@ -228,7 +227,6 @@
 
 <script>
 const API_BASE = '/api';
-let authToken = localStorage.getItem('token') || '';
 let currentUser = null;
 let isAuthRegister = false;
 let currentMode = 'doudizhu';
@@ -240,11 +238,16 @@ const SKINS = [
   { id: 'purple', name: '幻影紫', price: 1200, class: 'skin-purple' }
 ];
 
+// HttpOnly Cookie 鉴权请求
 async function apiCall(endpoint, method = 'GET', data = null) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const options = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include'
+  };
+  if (data) options.body = JSON.stringify(data);
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, { method, headers, body: data ? JSON.stringify(data) : null });
+    const res = await fetch(`${API_BASE}${endpoint}`, options);
     return await res.json();
   } catch (err) {
     return { success: false, msg: '网络连接失败' };
@@ -269,19 +272,28 @@ async function submitAuth() {
 
   const res = await apiCall(isAuthRegister ? '/register' : '/login', 'POST', { username, password });
   if (res.success) {
-    if (isAuthRegister) { alert(res.msg); toggleAuthMode(); }
-    else { authToken = res.token; localStorage.setItem('token', authToken); currentUser = res.user; loadHomeScreen(); }
-  } else { alert(res.msg); }
+    if (isAuthRegister) { 
+      alert(res.msg); 
+      toggleAuthMode(); 
+    } else { 
+      currentUser = res.user; 
+      loadHomeScreen(); 
+    }
+  } else { 
+    alert(res.msg); 
+  }
 }
 
 async function checkLogin() {
-  if (!authToken) return showScreen('auth-screen');
   const res = await apiCall('/user/profile');
-  if (res.success) { currentUser = res.user; loadHomeScreen(); }
-  else { logout(); }
+  if (res.success) { 
+    currentUser = res.user; 
+    loadHomeScreen(); 
+  } else { 
+    showScreen('auth-screen'); 
+  }
 }
 
-/* 核心修复：随时更新全屏金币显示 */
 function updateCoinDisplay() {
   if (!currentUser || !currentUser.coins) return;
   document.getElementById('coin-doudizhu').innerText = currentUser.coins.doudizhu ?? 1000;
@@ -295,12 +307,22 @@ function loadHomeScreen() {
   showScreen('home-screen');
 }
 
-function logout() { localStorage.removeItem('token'); authToken = ''; currentUser = null; showScreen('auth-screen'); }
-async function deleteAccount() {
-  if (confirm('确定注销账号？')) { const res = await apiCall('/user/delete', 'POST'); if (res.success) logout(); }
+async function logout() { 
+  await apiCall('/logout', 'POST');
+  currentUser = null; 
+  showScreen('auth-screen'); 
 }
 
-/* Card Skin Rendering Engine */
+async function deleteAccount() {
+  if (confirm('确定注销账号？')) { 
+    const res = await apiCall('/user/delete', 'POST'); 
+    if (res.success) {
+      currentUser = null;
+      showScreen('auth-screen');
+    }
+  }
+}
+
 function renderCardDOM(card, isBack = false) {
   const el = document.createElement('div');
   const equippedSkinId = currentUser ? currentUser.equippedSkin : 'default';
@@ -331,7 +353,7 @@ function openMarketModal() {
       <div style="font-size:12px; font-weight:bold;">${s.name}</div>
       <div style="font-size:11px; color:#f1c40f;">${isUnlocked ? '已拥有' : s.price + ' 金币'}</div>
       <button class="btn" style="min-width:60px; padding:3px 8px; font-size:11px;" 
-        onclick="${isUnlocked ? `equipSkin('${s.id}')` : `buySkin('${s.id}', ${s.price})`}">
+        onclick="${isUnlocked ? `equipSkin('${s.id}')` : `buySkin('${s.id}')`}">
         ${isEquipped ? '已佩戴' : (isUnlocked ? '佩戴' : '购买')}
       </button>
     `;
@@ -341,8 +363,8 @@ function openMarketModal() {
 }
 function closeMarketModal() { document.getElementById('market-modal').classList.remove('active'); }
 
-async function buySkin(skinId, price) {
-  const res = await apiCall('/market/buy', 'POST', { skinId, price });
+async function buySkin(skinId) {
+  const res = await apiCall('/market/buy', 'POST', { skinId });
   if (res.success) {
     currentUser.coins = res.coins;
     currentUser.unlockedSkins = res.unlockedSkins;
@@ -354,7 +376,10 @@ async function buySkin(skinId, price) {
 
 async function equipSkin(skinId) {
   const res = await apiCall('/market/equip', 'POST', { skinId });
-  if (res.success) { currentUser.equippedSkin = res.equippedSkin; openMarketModal(); }
+  if (res.success) { 
+    currentUser.equippedSkin = res.equippedSkin; 
+    openMarketModal(); 
+  }
 }
 
 function openAccountModal() { document.getElementById('account-modal').classList.add('active'); }
@@ -370,7 +395,6 @@ function startGame(mode) {
   if (mode === 'blackjack') initBlackjack();
 }
 
-/* 核心修复：从游戏返回主页时拉取最新金币状态 */
 async function returnToHome() {
   hideModal();
   clearPlayAreas();
@@ -380,7 +404,6 @@ async function returnToHome() {
   loadHomeScreen();
 }
 
-/* Modal Engine with Callback Support */
 function showModal(title, body, onConfirm = null) {
   document.getElementById('modal-title').innerText = title;
   document.getElementById('modal-body').innerText = body;
@@ -650,13 +673,12 @@ function executePlay(seat, cards, didCheat = false, cheatCard = null) {
   if (gameState.hands[seat].length === 0) {
     const winnerRole = (seat === gameState.landlord) ? '地主' : '农民';
     const isWin = (seat === 'PLAYER') || (seat !== gameState.landlord && gameState.landlord !== 'PLAYER');
-    const reward = isWin ? 200 : -100;
+    const action = isWin ? 'WIN' : 'LOSE';
 
-    /* 金币结算与实时UI刷新 */
-    apiCall('/game/reward', 'POST', { gameType: 'doudizhu', amount: reward }).then(res => {
+    apiCall('/game/reward', 'POST', { gameType: 'doudizhu', action }).then(res => {
       if(res.success) { currentUser.coins = res.coins; updateCoinDisplay(); }
     });
-    showModal("对局结束", `${getSeatName(seat)}（${winnerRole}）率先出完牌！${isWin ? '您获得了 200 金币！' : '您扣除了 100 金币。'}`, initGame);
+    showModal("对局结束", `${getSeatName(seat)}（${winnerRole}）率先出完牌！${isWin ? '您赢得了对局！' : '您输掉了对局。'}`, initGame);
     return;
   }
 
@@ -710,17 +732,18 @@ function handleVerifyCheat() {
   const targetSeatName = getSeatName(gameState.lastPlay.player);
 
   if (gameState.lastPlay.didCheat) {
-    apiCall('/game/reward', 'POST', { gameType: 'doudizhu', amount: 500 }).then(r => {
+    apiCall('/game/reward', 'POST', { gameType: 'doudizhu', action: 'VERIFY_SUCCESS' }).then(r => {
       if(r.success) { currentUser.coins = r.coins; updateCoinDisplay(); }
     });
-    showModal("验牌成功！🚨", `抓包成功！${targetSeatName} 在刚才的出牌中偷夹了底牌作弊！被取消资格，玩家阵营获胜并赢 500 金币！`, initGame);
+    showModal("验牌成功！🚨", `抓包成功！${targetSeatName} 在刚才的出牌中偷夹了底牌作弊！被取消资格，玩家阵营获胜！`, initGame);
   } else {
-    apiCall('/game/reward', 'POST', { gameType: 'doudizhu', amount: -200 }).then(r => {
+    apiCall('/game/reward', 'POST', { gameType: 'doudizhu', action: 'VERIFY_FAIL' }).then(r => {
       if(r.success) { currentUser.coins = r.coins; updateCoinDisplay(); }
     });
-    showModal("验牌失败！❌", `验牌结果：${targetSeatName} 刚才出牌完全合规！误报扣除 200 金币。`, initGame);
+    showModal("验牌失败！❌", `验牌结果：${targetSeatName} 刚才出牌完全合规！误报扣除违约金。`, initGame);
   }
 }
+
 function renderHands() {
   const pContainer = document.getElementById('player-hand');
   const aiRightContainer = document.getElementById('ai-right-hand');
@@ -776,7 +799,7 @@ function updateRoleBadges() {
 }
 
 /* ========================================================================= */
-/* 2. REVISED ZHA JIN HUA (炸金花)                                           */
+/* 2. ZHA JIN HUA (炸金花)                                                   */
 /* ========================================================================= */
 let zjhState = { hands: {}, pot: 0, currentBet: 20, folded: {} };
 
@@ -789,12 +812,12 @@ function initZhaJinHua() {
 
   renderZJH(false);
   document.getElementById('action-bar').innerHTML = `
-    <button class="btn" onclick="zjhCall()">跟注 (${zjhState.currentBet})</button>
-    <button class="btn" onclick="zjhRaise()">加注 (+20)</button>
+    <button class="btn" onclick="zjhCall()">跟注</button>
+    <button class="btn" onclick="zjhRaise()">加注</button>
     <button class="btn btn-secondary" onclick="zjhFold()">弃牌</button>
-    <button class="btn btn-verify" onclick="zjhShowdown()">开牌 (Showdown)</button>
+    <button class="btn btn-verify" onclick="zjhShowdown()">开牌</button>
   `;
-  showToast("炸金花局开幕，底注 20 金币");
+  showToast("炸金花开局");
 }
 
 function renderZJH(revealAll = false) {
@@ -807,7 +830,7 @@ function renderZJH(revealAll = false) {
   const aiR = document.getElementById('ai-right-hand'); aiR.innerHTML = '';
   zjhState.hands.AI_RIGHT.forEach(card => aiR.appendChild(renderCardDOM(card, !revealAll)));
 
-  document.getElementById('player-info').innerHTML = `玩家 - 底池奖池: ${zjhState.pot}`;
+  document.getElementById('player-info').innerHTML = `玩家 - 底池: ${zjhState.pot}`;
   document.getElementById('ai-left-info').innerHTML = zjhState.folded.AI_LEFT ? 'AI 左 (弃牌)' : 'AI 左';
   document.getElementById('ai-right-info').innerHTML = zjhState.folded.AI_RIGHT ? 'AI 右 (弃牌)' : 'AI 右';
 }
@@ -816,7 +839,7 @@ function zjhCall() { zjhState.pot += zjhState.currentBet * 3; renderZJH(false); 
 function zjhRaise() { zjhState.currentBet += 20; zjhState.pot += zjhState.currentBet * 3; renderZJH(false); showToast(`加注至 ${zjhState.currentBet}`); }
 function zjhFold() {
   zjhState.folded.PLAYER = true;
-  apiCall('/game/reward', 'POST', { gameType: 'zhajinhua', amount: -zjhState.currentBet }).then(r => {
+  apiCall('/game/reward', 'POST', { gameType: 'zhajinhua', action: 'FOLD' }).then(r => {
     if(r.success) { currentUser.coins = r.coins; updateCoinDisplay(); }
   });
   showModal("炸金花", "您选择了弃牌！", initZhaJinHua);
@@ -842,33 +865,66 @@ function evalZJHScore(cards) {
 }
 
 function zjhShowdown() {
-  renderZJH(true); // 翻开所有 AI 牌
+  renderZJH(true);
   const pScore = evalZJHScore(zjhState.hands.PLAYER);
   const rScore = evalZJHScore(zjhState.hands.AI_RIGHT);
   const lScore = evalZJHScore(zjhState.hands.AI_LEFT);
 
   const isWin = pScore >= rScore && pScore >= lScore;
-  const reward = isWin ? zjhState.pot : -zjhState.currentBet;
+  const action = isWin ? 'SHOWDOWN_WIN' : 'SHOWDOWN_LOSE';
 
-  apiCall('/game/reward', 'POST', { gameType: 'zhajinhua', amount: reward }).then(r => {
+  apiCall('/game/reward', 'POST', { gameType: 'zhajinhua', action }).then(r => {
     if(r.success) { currentUser.coins = r.coins; updateCoinDisplay(); }
   });
-  showModal("炸金花开牌结算", isWin ? `🎉 恭喜！您赢得了奖池金币 ${zjhState.pot}！` : "❌ 惜败！点数不及对手。", initZhaJinHua);
+  showModal("炸金花结算", isWin ? `🎉 获胜！赢取底池金币！` : "❌ 惜败！点数不及对手。", initZhaJinHua);
 }
 
 /* ========================================================================= */
-/* 3. REVISED BLACKJACK (21点)                                              */
+/* 3. ROBUST 6-DECK BLACKJACK (21点 + 6副牌防耗尽 + 3:2 BJ)                   */
 /* ========================================================================= */
-let bjState = { playerHand: [], dealerHand: [], deck: [], bet: 50 };
+let bjState = { playerHand: [], dealerHand: [], shoe: [], inRound: false };
+
+// 初始化 6 副标准牌靴（312 张牌）
+function createShoe() {
+  const shoe = [];
+  for (let deck = 0; deck < 6; deck++) {
+    for (let w = 2; w <= 14; w++) {
+      for (let s = 0; s < 4; s++) {
+        let name = w.toString();
+        if (w === 11) name = 'J';
+        if (w === 12) name = 'Q';
+        if (w === 13) name = 'K';
+        if (w === 14) name = 'A';
+        shoe.push({ weight: w, suit: SUITS[s], name });
+      }
+    }
+  }
+  shuffle(shoe);
+  return shoe;
+}
 
 function initBlackjack() {
   hideModal(); clearPlayAreas(); document.getElementById('hole-cards').innerHTML = '';
-  bjState.deck = createDeck().filter(c => c.weight <= 15); shuffle(bjState.deck);
+  
+  // 牌堆小于 52 张（Cut-card）自动换新牌靴，杜绝耗尽崩溃
+  if (!bjState.shoe || bjState.shoe.length < 52) {
+    bjState.shoe = createShoe();
+    showToast("牌靴重新洗牌（6副牌）");
+  }
 
-  bjState.playerHand = [bjState.deck.pop(), bjState.deck.pop()];
-  bjState.dealerHand = [bjState.deck.pop(), bjState.deck.pop()];
+  bjState.playerHand = [bjState.shoe.pop(), bjState.shoe.pop()];
+  bjState.dealerHand = [bjState.shoe.pop(), bjState.shoe.pop()];
+  bjState.inRound = true;
 
   renderBJ(false);
+
+  // 检查首轮 Natural 21 (Blackjack)
+  const pScore = getBJScore(bjState.playerHand);
+  if (pScore === 21) {
+    bjEndRound(true, true);
+    return;
+  }
+
   document.getElementById('action-bar').innerHTML = `
     <button class="btn" onclick="bjHit()">要牌 (Hit)</button>
     <button class="btn btn-secondary" onclick="bjStand()">停牌 (Stand)</button>
@@ -901,35 +957,65 @@ function renderBJ(revealDealer = false) {
 
   document.getElementById('player-info').innerHTML = `玩家 (点数: ${pScore})`;
   document.getElementById('ai-left-info').innerHTML = `庄家 AI (点数: ${dScore})`;
-  document.getElementById('ai-right-info').innerHTML = `本局底注: ${bjState.bet}`;
+  document.getElementById('ai-right-info').innerHTML = `剩余卡牌: ${bjState.shoe.length}`;
 }
 
 function bjHit() {
-  bjState.playerHand.push(bjState.deck.pop()); renderBJ(false);
+  if (!bjState.inRound) return;
+  bjState.playerHand.push(bjState.shoe.pop()); 
+  renderBJ(false);
+  
   if (getBJScore(bjState.playerHand) > 21) {
-    renderBJ(true);
-    apiCall('/game/reward', 'POST', { gameType: 'blackjack', amount: -bjState.bet }).then(r => {
-      if(r.success) { currentUser.coins = r.coins; updateCoinDisplay(); }
-    });
-    showModal("爆牌！❌", "您的总点数超过 21 点，直接爆牌！", initBlackjack);
+    bjEndRound(false, false);
   }
 }
 
 function bjStand() {
+  if (!bjState.inRound) return;
   let dScore = getBJScore(bjState.dealerHand);
+  
+  // 庄家小于 17 点必须补牌
   while (dScore < 17) {
-    bjState.dealerHand.push(bjState.deck.pop());
+    bjState.dealerHand.push(bjState.shoe.pop());
     dScore = getBJScore(bjState.dealerHand);
   }
 
-  renderBJ(true);
   const pScore = getBJScore(bjState.playerHand);
-  const win = dScore > 21 || pScore > dScore;
+  if (dScore > 21 || pScore > dScore) {
+    bjEndRound(true, false);
+  } else if (pScore === dScore) {
+    bjEndRound('PUSH', false);
+  } else {
+    bjEndRound(false, false);
+  }
+}
 
-  apiCall('/game/reward', 'POST', { gameType: 'blackjack', amount: win ? bjState.bet : -bjState.bet }).then(r => {
+function bjEndRound(isWin, isNaturalBJ) {
+  bjState.inRound = false;
+  renderBJ(true);
+
+  let action = 'LOSE';
+  let title = "21点 结算";
+  let msg = "❌ 失败，庄家获胜。";
+
+  if (isWin === 'PUSH') {
+    action = 'PUSH';
+    msg = "🤝 平局 (Push)，底注退回。";
+  } else if (isWin && isNaturalBJ) {
+    action = 'BLACKJACK_WIN';
+    msg = "🔥 Natural Blackjack！达成 21 点（3:2 特别赔付）！";
+  } else if (isWin) {
+    action = 'WIN';
+    msg = "🎉 胜利！您的点数击败了庄家！";
+  } else {
+    const pScore = getBJScore(bjState.playerHand);
+    if (pScore > 21) msg = "❌ 爆牌 (Bust)！点数超过 21 点。";
+  }
+
+  apiCall('/game/reward', 'POST', { gameType: 'blackjack', action }).then(r => {
     if(r.success) { currentUser.coins = r.coins; updateCoinDisplay(); }
   });
-  showModal("21点 结算", win ? `🎉 胜利！您的点数 (${pScore}) 击败了庄家，赢取 ${bjState.bet} 金币！` : `❌ 失败！庄家 (${dScore}点) 获胜。`, initBlackjack);
+  showModal(title, msg, initBlackjack);
 }
 
 function showToast(msg) {
